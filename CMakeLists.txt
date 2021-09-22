@@ -6,7 +6,9 @@ project(danique)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
     geometry_msgs
-    roscpp)
+    roscpp
+    sensor_msgs
+    ropod_ros_msgs)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -74,8 +76,9 @@ include_directories(
 #   ${catkin_LIBRARIES}
 # )
 
-add_executable(simple_node src/simple_node.cpp)
+add_executable(simple_node src/simple_node.cpp src/Functions.cpp include/Functions.h include/Classes.h)
 target_link_libraries(simple_node  ${catkin_LIBRARIES})
+
 
 #############
 ## Testing ##

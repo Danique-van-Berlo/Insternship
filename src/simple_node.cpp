@@ -1,85 +1,101 @@
 #include "ros/ros.h"
 #include "geometry_msgs/Twist.h"
+#include"nav_msgs/Odometry.h"
+#include "sensor_msgs/LaserScan.h"
+#include "Functions.h"
+#include "ropod_ros_msgs/DockAction.h"
 
-
-/**
- * This tutorial demonstrates simple sending of messages over the ROS system.
- */
 int main(int argc, char **argv)
 {
-    /**
-     * The ros::init() function needs to see argc and argv so that it can perform
-     * any ROS arguments and name remapping that were provided at the command line.
-     * For programmatic remappings you can use a different version of init() which takes
-     * remappings directly, but for most command-line programs, passing argc and argv is
-     * the easiest way to do it.  The third argument to init() is the name of the node.
-     *
-     * You must call one of the versions of ros::init() before using any other
-     * part of the ROS system.
-     */
     ros::init(argc, argv, "simple_node");
-
-    /**
-     * NodeHandle is the main access point to communications with the ROS system.
-     * The first NodeHandle constructed will fully initialize this node, and the last
-     * NodeHandle destructed will close down the node.
-     */
     ros::NodeHandle nh;
 
-    /**
-     * The advertise() function is how you tell ROS that you want to
-     * publish on a given topic name. This invokes a call to the ROS
-     * master node, which keeps a registry of who is publishing and who
-     * is subscribing. After this advertise() call is made, the master
-     * node will notify anyone who is trying to subscribe to this topic name,
-     * and they will in turn negotiate a peer-to-peer connection with this
-     * node.  advertise() returns a Publisher object which allows you to
-     * publish messages on that topic through a call to publish().  Once
-     * all copies of the returned Publisher object are destroyed, the topic
-     * will be automatically unadvertised.
-     *
-     * The second parameter to advertise() is the size of the message queue
-     * used for publishing messages.  If messages are published more quickly
-     * than we can send them, the number here specifies how many messages to
-     * buffer up before throwing some away.
-     */
     ros::Publisher cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
+    double F = 10;
 
-    ros::Rate loop_rate(10);
+    ros::Rate loop_rate(F);
 
+    std::vector<std::vector<double>> PointCloud;
+    std::vector<Segment> segments;
+    sensor_msgs::LaserScan laser;
+    nav_msgs::Odometry odom;
+    std::vector<double> speed = {0,0,0};
+    std::vector<double> robot_pose = {0,0,0};
+    double robot_width = 0.5;
+    std::vector<double> sensor_dist = {0.05, 0};
+    Line area;
+    Line facing;
 
-    // Init
+    /*std::cout << " What is the area of the cart w.r.t. the entrance?: ";
+    std::cin >> area; */
 
-    // Driving
-    // do_driving(current_pose, end_pose)
+    /* Initialize: translate the information of the cart w.r.t. the entrance to w.r.t. start pose of the robot. */
+    std::vector<double> entrance = FindingEntrance(laser, robot_pose);
+    area.p1 = TransformPosition(area.p1, entrance);
+    area.p2 = TransformPosition(area.p2, entrance);
+    facing.p1 = TransformPosition(facing.p1, entrance);
+    facing.p2 = TransformPosition(facing.p2, entrance);
+    std::vector<double> destination = FindAreaPose(facing);
 
-    // while(ros::OK())
-    // pose_diff = get_pose_to_trolley()
-    // if (pose_diff < 0.1)
-    //      break
-    // speed = calculate_speed(pose_diff, last_speed)
-    // publish(speed)
-
-    // docking
-
-
+    /* Driving: destination is set to be the area of the cart, and the robot drives up there */
     while (ros::ok())
     {
-        // pose = get robot position()
-
-        // speed = determine_speed(pose, target, last_speed)
-
-        // publish(speed)
-        geometry_msgs::Twist msg;
-
-        ROS_INFO_STREAM(msg);
-
-        cmd_vel_pub.publish(msg);
-
-        ros::spinOnce();
+        std::vector<double> pose_diff = FindPoseDiff(robot_pose, entrance);
+        if (std::abs(pose_diff[0]) < 0.02 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.05*M_PI) {
+            break;
+        }
+        speed = CalculateSpeed(pose_diff, speed, F, laser);
+        robot_pose = {robot_pose[0]+speed[0]/F, robot_pose[1]+speed[1]/F, robot_pose[2]+speed[2]/F};
 
         loop_rate.sleep();
     }
+
+    /* Finding the cart: the LiDAR data of the robot is used to find the important segment of the cart.
+     * Aftwerwards, the intermediate position and the desired position are calculated.
+     * Finally, the desired distance to each realiable/useful object segment is calculated */
+    PointCloud = MakingPointCloud(laser, robot_pose);
+    segments = MakingLineSegments(PointCloud, 0, 0);
+    Segment cart = FindCart(segments, area, facing);
+    std::vector<double> int_pose = FindDesiredPose(cart, robot_width+0.5, robot_width+0.1);
+    int_pose = {int_pose[0]-sensor_dist[0], int_pose[1]-sensor_dist[1], int_pose[2]};
+    std::vector<double> desired_pose = FindDesiredPose(cart, 0, robot_width+0.1);
+    int_pose = {desired_pose[0]-sensor_dist[0], desired_pose[1]-sensor_dist[1], desired_pose[2]};
+    std::vector<Segment> localization_segments = CertaintyFilter(segments, 5, cart);
+    std::vector<Distance> object_distance = FindDistance(desired_pose, localization_segments);
+
+    /* Driving: the destination is set to be the intermediate pose, and the robot drives up there. */
+    while (ros::ok())
+    {
+        std::vector<double> pose_diff = FindPoseDiff(robot_pose, int_pose);
+        if (std::abs(pose_diff[0]) < 0.02 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.05*M_PI) {
+            break;
+        }
+        speed = CalculateSpeed(pose_diff, speed, F, laser);
+        robot_pose = {robot_pose[0]+speed[0]/F, robot_pose[1]+speed[1]/F, robot_pose[2]+speed[2]/F};
+
+        loop_rate.sleep();
+    }
+
+    /* Driving: the destination is set to be the desired pose, and the robot drives up there.
+     * However, it does on the base of checking its distance to nearby objects */
+    while (ros::ok())
+    {
+        PointCloud = MakingPointCloud(laser, {0,0,0});
+        segments = MakingLineSegments(PointCloud, 0, 0);
+        std::vector<Segment> localization2_segments = CompareSegments(localization_segments, segments, robot_pose);
+        std::vector<double> error = CalculateError(object_distance, localization2_segments);
+
+        if (std::abs(error[0]) < 0.02 && std::abs(error[1]) < 0.08 && std::abs(error[2]) < 0.05*M_PI) {
+            break;
+        }
+        speed = CalculateSpeed(error, speed, F, laser);
+        robot_pose = {robot_pose[0]+speed[0]/F, robot_pose[1]+speed[1]/F, robot_pose[2]+speed[2]/F};
+
+        loop_rate.sleep();
+    }
+
+    // docking
+    ropod_ros_msgs::DockAction()
 
     return 0;
 }
