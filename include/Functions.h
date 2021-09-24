@@ -13,8 +13,8 @@ std::vector<double> FindPoseDiff(std::vector<double> robot_pose, std::vector<dou
 std::vector<double> FindingEntrance(sensor_msgs::LaserScan& laser, const std::vector<double>& robot_pose);
 std::vector<double> FindAreaPose(const std::vector<double>& entrance, const Line& area, Line facing);
 //Driving
-bool Wait(std::vector<std::vector<double>> pointcloud);
-std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double F, sensor_msgs::LaserScan& laser);
+bool Wait(std::vector<std::vector<double>> pointcloud, double b, std::vector<double> pose_diff);
+std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double F, sensor_msgs::LaserScan& laser, double b);
 
 std::vector<Segment> CompareSegments(std::vector<Segment> old_segments, std::vector<Segment> new_segments, const std::vector<double>& robot_pose);
 std::vector<Segment> CertaintyFilter(std::vector<Segment> segments, double amount, const Segment& cart);

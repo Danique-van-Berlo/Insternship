@@ -6,9 +6,10 @@
 
 std::vector<std::vector<double>> MakingPointCloud(sensor_msgs::LaserScan& laser, const std::vector<double>& robot_pose) { /* A */
     std::vector<std::vector<double>> pointcloud;
+    double sensor_dist = 0.3795;
     for (int i = 0; i < laser.ranges.size(); i++) {
         double alpha = laser.angle_min + (laser.angle_increment * float(i));
-        std::vector<double> point_int = {laser.ranges[i] * std::cos(alpha), laser.ranges[i] * std::sin(alpha)};
+        std::vector<double> point_int = {laser.ranges[i] * std::cos(alpha)+sensor_dist, laser.ranges[i] * std::sin(alpha)};
         std::vector<double> point = TransformPosition(point_int, robot_pose);
         pointcloud.push_back(point);
     }
@@ -76,9 +77,9 @@ std::vector<double> FindingEntrance(sensor_msgs::LaserScan& laser, const std::ve
             double xd2 = 1/(std::sqrt((segments[j].p2[0]-segments[j].p1[0])*(segments[j].p2[0]-segments[j].p1[0])+(segments[j].p2[1]-segments[j].p1[1])*(segments[j].p2[1]-segments[j].p1[1])))*(segments[j].p2[0]-segments[j].p1[0]);
             double yd1 = 1/(std::sqrt((segments[i].p2[0]-segments[i].p1[0])*(segments[i].p2[0]-segments[i].p1[0])+(segments[i].p2[1]-segments[i].p1[1])*(segments[i].p2[1]-segments[i].p1[1])))*(segments[i].p2[1]-segments[i].p1[1]);
             double yd2 = 1/(std::sqrt((segments[j].p2[0]-segments[j].p1[0])*(segments[j].p2[0]-segments[j].p1[0])+(segments[j].p2[1]-segments[j].p1[1])*(segments[j].p2[1]-segments[j].p1[1])))*(segments[j].p2[1]-segments[j].p1[1]);
-            if (w == 0.83 && xd1-0.05<xd2<xd1+0.05 && yd1-0.05<yd2<yd1+0.05) {
-                double x = 0.5*(segments[i].p1[0]-segments[j].p2[0]);
-                double y = 0.5*(segments[i].p1[1]-segments[j].p2[1]);
+            if ((0.82 < w < 0.89 || 0.82 < 0.5*w < 0.89) && xd1-0.05<xd2<xd1+0.05 && yd1-0.05<yd2<yd1+0.05) {
+                double x = 0.5*(segments[i].p2[0]-segments[j].p1[0]);
+                double y = 0.5*(segments[i].p2[1]-segments[j].p1[1]);
                 double alpha = RotationDifference(segments[i].p1,segments[i].p2)+M_PI_2; //nog ff checken
                 pose = {x, y, alpha};
                 std::cout << "Entrance is found" << std::endl;
@@ -99,14 +100,13 @@ std::vector<double> TransformPosition(std::vector<double> old_point, std::vector
 
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
-bool Wait(std::vector<std::vector<double>> pointcloud) { /* G */
-    double d = 3;
-    double b = 1;
+bool Wait(std::vector<std::vector<double>> pointcloud, double b, std::vector<double> pose_diff) { /* G */
+    double d = 0.5;
     double delta = 0.1;
     int n = 0;
     bool wait;
     for (auto & i : pointcloud) {
-        if (std::abs(i[1]) > d*i[0]/(b+delta)) {
+        if (std::abs(i[1]) > d*i[0]/(2*b+delta) && pose_diff[0] > 0.5 && pose_diff[1] > 0.5) {
             n += 1;
         }
     }
@@ -118,7 +118,7 @@ bool Wait(std::vector<std::vector<double>> pointcloud) { /* G */
     return wait;
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
-std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double f, sensor_msgs::LaserScan& laser) { /* F */
+std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double f, sensor_msgs::LaserScan& laser, double b) { /* F */
     /* Velocity constraints */
     double vmax = 3.8;
     double wmax = 3/32*M_PI;
@@ -126,7 +126,7 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
     double amax = 1.68;
     double awmax = 3/68*M_PI;
     std::vector<std::vector<double>> pointcloud = MakingPointCloud(laser, {0,0,0});
-    bool wait = Wait(pointcloud);
+    bool wait = Wait(pointcloud, b, pose_diff);
     std::vector<double> speed;
     if ((-0.05*M_PI < pose_diff[2] < 0.05*M_PI) && (!wait)) {
         double vt = f*pose_diff[2];
