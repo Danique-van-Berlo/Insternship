@@ -3,18 +3,19 @@
 #include "Classes.h"
 
 //Segmentation
-std::vector<std::vector<double>> MakingPointCloud(sensor_msgs::LaserScan& laser, const std::vector<double>& robot_pose);
-std::vector<Segment> MakingLineSegments(std::vector<std::vector<double>> pointcloud, int i, int n);
+void MakingPointCloud(const std::vector<double>& robot_pose, std::vector<std::vector<double>> pointcloud, sensor_msgs::LaserScan& laser);
+void MakingLineSegments(std::vector<Segment>& segments, std::vector<std::vector<double>> pointcloud, int i, int n, double lambda_old);
 //Mathematic tools
 double RotationDifference(std::vector<double> p1, std::vector<double> p2);
 std::vector<double> TransformPosition(std::vector<double> old_point, std::vector<double> rel_pose);
+std::vector<double> TransformPositionB(std::vector<double> old_point, std::vector<double> rel_pose);
 std::vector<double> FindPoseDiff(std::vector<double> robot_pose, std::vector<double> destination);
 
-std::vector<double> FindingEntrance(sensor_msgs::LaserScan& laser, const std::vector<double>& robot_pose);
-std::vector<double> FindAreaPose(const std::vector<double>& entrance, const Line& area, Line facing);
+std::vector<double> FindingEntrance(std::vector<Segment> segments, const std::vector<double>& robot_pose);
+void FindAreaPose(Line facing, std::vector<double>& destination);
 //Driving
 bool Wait(std::vector<std::vector<double>> pointcloud, double b, std::vector<double> pose_diff);
-std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double F, sensor_msgs::LaserScan& laser, double b);
+std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double F, sensor_msgs::LaserScan& laser, double b, std::vector<std::vector<double>> pointcloud);
 
 std::vector<Segment> CompareSegments(std::vector<Segment> old_segments, std::vector<Segment> new_segments, const std::vector<double>& robot_pose);
 std::vector<Segment> CertaintyFilter(std::vector<Segment> segments, double amount, const Segment& cart);
