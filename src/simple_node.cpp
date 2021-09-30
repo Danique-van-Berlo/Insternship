@@ -128,9 +128,13 @@ int main(int argc, char **argv)
         Segment cart = FindCart(segments, area, facing);
         ROS_INFO("Cart is found at (%f,%f) and (%f,%f)", cart.p1[0], cart.p1[1], cart.p2[0], cart.p2[1]);
         //------------------------------------------Find intermediate pose--------------------------------------------------
-        //std::vector<double> int_pose = FindDesiredPose(cart, robot_width+0.5, robot_width+0.1);
+        ROS_INFO("Start intermediate pose calculations");
+        std::vector<double> int_pose = FindDesiredPose(cart, robot_width+0.5, robot_width+0.1);
+        ROS_INFO("The intermediate pose is: (%f,%f,%f)", int_pose[0], int_pose[1], int_pose[2]);
         //------------------------------------------Find desired pose-------------------------------------------------------
-        //std::vector<double> desired_pose = FindDesiredPose(cart, 0, robot_width+0.1);
+        ROS_INFO("Start desired pose calculations");
+        std::vector<double> desired_pose = FindDesiredPose(cart, 0, robot_width+0.1);
+        ROS_INFO("The desired pose is: (%f,%f,%f)", desired_pose[0], desired_pose[1], desired_pose[2]);
         //------------------------------------------Filter the segments used for localization-------------------------------
         //std::vector<Segment> localization_segments = CertaintyFilter(segments, 5, cart);
         //------------------------------------------Find the desired distance to the objects--------------------------------

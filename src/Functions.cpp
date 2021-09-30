@@ -270,11 +270,8 @@ int FindHighestCertainty(std::vector<Segment> segments, Segment cart) {
 /*-----------------------------------------------------------------------------------------------------------------------------*/
 Segment FindCart(std::vector<Segment>& segments, Line area, Line facing) { /* J */
     Segment cart_segment;
-    ROS_INFO("Start for loop");
     for (auto & segment : segments) {
-        ROS_INFO("Start if statement");
         if ( area.p1[0] < segment.p1[0] < area.p2[0] && area.p1[1] < segment.p1[1] < area.p2[1] && area.p1[0] < segment.p2[0] < area.p2[0] && area.p1[1] < segment.p2[1] < area.p2[1]) {
-            ROS_INFO("Now a segment is found that is in the area of the cart");
             double xds = (1/(std::sqrt((segment.p2[0]-segment.p1[0])*(segment.p2[0]-segment.p1[0])+(segment.p2[1]-segment.p1[1])*(segment.p2[1]-segment.p1[1]))))*(segment.p2[0]-segment.p1[0]);
             double yds = (1/(std::sqrt((segment.p2[0]-segment.p1[0])*(segment.p2[0]-segment.p1[0])+(segment.p2[1]-segment.p1[1])*(segment.p2[1]-segment.p1[1]))))*(segment.p2[1]-segment.p1[1]);
             double dxs = segment.p1[0]-segment.p2[0];
@@ -285,7 +282,6 @@ Segment FindCart(std::vector<Segment>& segments, Line area, Line facing) { /* J 
             double dyf = facing.p1[1]-facing.p2[1];
             double alpha = std::acos((xds*xdf+yds*ydf)/(std::sqrt(dxs*dxs+dys*dys)*std::sqrt(dxf*dxf+dyf*dyf)));
             if ( -M_PI_4 < alpha < M_PI_4 ) {
-                ROS_INFO("Now a segment is found hat has the same angle as the important side of the cart.");
                 cart_segment = segment;
             }
         }
@@ -321,9 +317,13 @@ std::vector<double> FindDesiredPose(Segment cart_segment, double range_x, double
     double dx = cart_segment.p2[0]-cart_segment.p1[0];
     double dy = cart_segment.p2[1]-cart_segment.p1[1];
     double mu = 1/(std::sqrt(dx*dx+dy*dy));
+    ROS_INFO("Calculating pose");
     double x = cart_segment.p2[0] + range_x*mu*dx + range_y*mu*dy;
+    ROS_INFO("Calculated x-position: %f", x);
     double y = cart_segment.p2[1] + range_x*mu*dy - range_y*mu*dx;
+    ROS_INFO("Calculated y-position: %f", y);
     double alpha = RotationDifference(cart_segment.p1, cart_segment.p2);
+    ROS_INFO("Calculated theta-position: %f", alpha);
     std::vector<double> pose = {x, y, alpha};
     return pose;
 }
