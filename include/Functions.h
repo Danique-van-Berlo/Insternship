@@ -20,7 +20,7 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
 std::vector<Segment> CompareSegments(std::vector<Segment> old_segments, std::vector<Segment> new_segments, const std::vector<double>& robot_pose);
 std::vector<Segment> CertaintyFilter(std::vector<Segment> segments, double amount, const Segment& cart);
 int FindHighestCertainty(std::vector<Segment> segments, Segment cart);
-Segment FindCart(std::vector<Segment> segments, Line area, Line facing);
+Segment FindCart(std::vector<Segment>& segments, Line area, Line facing);
 std::vector<Distance> FindDistance(const std::vector<double>& desired_pose, const std::vector<Segment>& certainty_segments);
 std::vector<double> FindDesiredPose(Segment cart_segment, double range_x, double range_y);
 std::vector<double> FindAreaPose(Line facing);

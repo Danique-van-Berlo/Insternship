@@ -139,28 +139,20 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
     bool wait = Wait(pointcloud, b, pose_diff);
     std::vector<double> speed;
     if ((pose_diff[2] > 0.05*M_PI || pose_diff[2] < -0.05*M_PI)  && (!wait)) {
-        ROS_INFO("Calculate the speed in theta for %f", pose_diff[2]);
+        ROS_INFO("Calculate the speed in theta");
         double vt = f*pose_diff[2];
-        ROS_INFO("Initial speed %f", vt);
         double at = f*(vt-old_speed[2]);
-        ROS_INFO("Initial acceleration %f", at);
         if (at > awmax){
             at = awmax;
         } else if (at < -awmax){
-            ROS_INFO("max acceleration %f", -awmax);
             at = -awmax;
-            ROS_INFO("max acceleration %f", at);
         }
-        ROS_INFO("Adjusted acceleration %f", at);
-        ROS_INFO("old speed %f", old_speed[2]);
         vt = old_speed[2] + at/f;
-        ROS_INFO("Intermediate speed %f", vt);
         if (vt > wmax){
             vt = wmax;
         } else if (vt < -wmax){
             vt = -wmax;
         }
-        ROS_INFO("Final speed %f", vt);
         /* if (vt*vt/awmax >= pose_diff[2]) { Improve for deceleration
             at = -awmax;
             vt = old_speed[2] + at/f;
@@ -276,10 +268,13 @@ int FindHighestCertainty(std::vector<Segment> segments, Segment cart) {
     return n;
 }
 /*-----------------------------------------------------------------------------------------------------------------------------*/
-Segment FindCart(std::vector<Segment> segments, Line area, Line facing) { /* J */
+Segment FindCart(std::vector<Segment>& segments, Line area, Line facing) { /* J */
     Segment cart_segment;
+    ROS_INFO("Start for loop");
     for (auto & segment : segments) {
+        ROS_INFO("Start if statement");
         if ( area.p1[0] < segment.p1[0] < area.p2[0] && area.p1[1] < segment.p1[1] < area.p2[1] && area.p1[0] < segment.p2[0] < area.p2[0] && area.p1[1] < segment.p2[1] < area.p2[1]) {
+            ROS_INFO("Now a segment is found that is in the area of the cart");
             double xds = (1/(std::sqrt((segment.p2[0]-segment.p1[0])*(segment.p2[0]-segment.p1[0])+(segment.p2[1]-segment.p1[1])*(segment.p2[1]-segment.p1[1]))))*(segment.p2[0]-segment.p1[0]);
             double yds = (1/(std::sqrt((segment.p2[0]-segment.p1[0])*(segment.p2[0]-segment.p1[0])+(segment.p2[1]-segment.p1[1])*(segment.p2[1]-segment.p1[1]))))*(segment.p2[1]-segment.p1[1]);
             double dxs = segment.p1[0]-segment.p2[0];
@@ -290,6 +285,7 @@ Segment FindCart(std::vector<Segment> segments, Line area, Line facing) { /* J *
             double dyf = facing.p1[1]-facing.p2[1];
             double alpha = std::acos((xds*xdf+yds*ydf)/(std::sqrt(dxs*dxs+dys*dys)*std::sqrt(dxf*dxf+dyf*dyf)));
             if ( -M_PI_4 < alpha < M_PI_4 ) {
+                ROS_INFO("Now a segment is found hat has the same angle as the important side of the cart.");
                 cart_segment = segment;
             }
         }
