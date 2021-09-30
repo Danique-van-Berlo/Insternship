@@ -67,9 +67,9 @@ double RotationDifference(std::vector<double> p1, std::vector<double> p2) { /* E
     double dy = p2[1]-p1[1];
     double alpha;
     if (y1 < 0) {
-        alpha = -std::acos((dx)/(std::sqrt(dx*dx+dy*dy)));
+        alpha = -std::acos((dx)/(std::sqrt(dx*dx+dy*dy)))+M_PI_2;
     } else {
-        alpha = std::acos((dx)/(std::sqrt(dx*dx+dy*dy)));
+        alpha = std::acos((dx)/(std::sqrt(dx*dx+dy*dy)))+M_PI_2;
     }
     return alpha;
 }
@@ -130,15 +130,15 @@ bool Wait(std::vector<std::vector<double>> pointcloud, double b, std::vector<dou
 /*------------------------------------------------------------------------------------------------------------------------*/
 std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double f, sensor_msgs::LaserScan& laser, double b, std::vector<std::vector<double>> pointcloud) { /* F */
     /* Velocity constraints */
-    double vmax = 3.8;
+    double vmax = 3.5;
     double wmax = (3*M_PI)/32;
     /* Acceleration constraints */
-    double amax = 1.68;
+    double amax = 1.05;
     double awmax = (3*M_PI)/68;
     MakingPointCloud({0,0,0}, pointcloud, laser);
     bool wait = Wait(pointcloud, b, pose_diff);
     std::vector<double> speed;
-    if ((-0.05*M_PI < pose_diff[2] < 0.05*M_PI) && (!wait)) {
+    if ((pose_diff[2] > 0.05*M_PI || pose_diff[2] < -0.05*M_PI)  && (!wait)) {
         ROS_INFO("Calculate the speed in theta for %f", pose_diff[2]);
         double vt = f*pose_diff[2];
         ROS_INFO("Initial speed %f", vt);
@@ -161,12 +161,12 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
             vt = -wmax;
         }
         ROS_INFO("Final speed %f", vt);
-        if (vt*vt/awmax >= pose_diff[2]) {
+        /* if (vt*vt/awmax >= pose_diff[2]) { Improve for deceleration
             at = -awmax;
             vt = old_speed[2] + at/f;
-        }
+        } */
         speed = {0,0,vt};
-    } else if ((-0.08 < pose_diff[1] < 0.08) && (!wait)) {
+    } else if ((pose_diff[1] > 0.08 || pose_diff[1] < -0.08)  && (!wait)) {
         ROS_INFO("Calculate the speed in y");
         double vy = f*pose_diff[1];
         double ay = f*(vy-old_speed[1]);
@@ -181,12 +181,12 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
         } else if (vy < -vmax){
             vy = -vmax;
         }
-        /* if (vy*vy/amax >= pose_diff[1]) { Find solution for this
+        /* if (vy*vy/amax >= pose_diff[1]) { Improve for deceleration
             ay = -amax;
             vy = old_speed[1] + ay/f;
         } */
         speed = {0,vy,0};
-    } else if ((-0.02 < pose_diff[0] < 0.02) && (!wait)) {
+    } else if ((pose_diff[0] > 0.02 || pose_diff[0] < -0.02) && (!wait)) {
         ROS_INFO("Calculate the speed in x");
         double vx = f*pose_diff[0];
         double ax = f*(vx-old_speed[0]);
@@ -201,21 +201,21 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
         } else if (vx < -vmax){
             vx = -vmax;
         }
-        if (vx*vx/amax >= pose_diff[0]) {
+        /* if (vx*vx/amax >= pose_diff[0]) { Improve for deceleration
             ax = -amax;
             vx = old_speed[0] + ax/f;
-        }
+        } */
         speed = {vx,0,0};
     } else {
-        speed = {0, 0, 0};
+            speed = {0, 0, 0};
     }
     return speed;
 }
 /*----------------------------------------------------------------------------------------------------------------------*/
 std::vector<double> FindPoseDiff(std::vector<double> robot_pose, std::vector<double> destination) {
+    double t = destination[2]-robot_pose[2];
     double x = destination[0]-robot_pose[0];
     double y = destination[1]-robot_pose[1];
-    double t = destination[2]-robot_pose[2];
     std::vector<double> pose_diff = {x, y, t};
     return pose_diff;
 }

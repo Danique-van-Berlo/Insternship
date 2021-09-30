@@ -35,48 +35,6 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg) {
     ROS_INFO("%s", "Segments");
     segments.clear();
     MakingLineSegments(segments, PointCloud, 0, 0, 0);
-    //---------------------Search for the entrance----------------------------------------------------------------------
-    /*ROS_INFO("%s", "Entrance");
-    std::vector<double> entrance = FindingEntrance(segments, {0, 0, 0});
-    ROS_INFO("The entrance is: (%f,%f,%f)", entrance[0], entrance[1], entrance[2]);*/
-    //--------------------------Transform coordinates-------------------------------------------------------------------
-    /*ROS_INFO("Area point one: (%f,%f)", area.p1[0], area.p1[1]);
-    area.p1 = TransformPositionB(area.p1, entrance);
-    ROS_INFO("Area point one new: (%f,%f)", area.p1[0], area.p1[1]);
-    area.p2 = TransformPositionB(area.p2, entrance);
-    facing.p1 = TransformPositionB(facing.p1, entrance);
-    facing.p2 = TransformPositionB(facing.p2, entrance);*/
-    //-------------------------Set destination--------------------------------------------------------------------------
-    /*std::vector<double> destination;
-    FindAreaPose(facing, destination);
-    ROS_INFO("The destination is: (%f,%f,%f)", destination[0], destination[1], destination[2]);*/
-    //---------------------------Drive to destination-------------------------------------------------------------------
-    /*while (ros::ok())
-    {
-        std::vector<double> pose_diff = FindPoseDiff(robot_pose, entrance);
-        if (std::abs(pose_diff[0]) < 0.02 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.05*M_PI) {
-            twist_msg.linear.x = 0;
-            twist_msg.linear.y = 0;
-            twist_msg.angular.y = 0;
-            cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
-            break;
-        }
-        speed = CalculateSpeed(pose_diff, speed, F, laser, robot_width, PointCloud);
-        twist_msg.linear.x = speed[0];
-        twist_msg.linear.y = speed[1];
-        twist_msg.angular.y = speed[2];
-        cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
-        robot_pose = {robot_pose[0]+speed[0]/F, robot_pose[1]+speed[1]/F, robot_pose[2]+speed[2]/F};
-
-        loop_rate.sleep();
-    }
-    MakingPointCloud(robot_pose, PointCloud, laser);
-    MakingLineSegments(segments, PointCloud, 0, 0, 0);
-    Segment cart = FindCart(segments, area, facing);
-    std::vector<double> int_pose = FindDesiredPose(cart, robot_width+0.5, robot_width+0.1);
-    std::vector<double> desired_pose = FindDesiredPose(cart, 0, robot_width+0.1);
-    std::vector<Segment> localization_segments = CertaintyFilter(segments, 5, cart);
-    std::vector<Distance> object_distance = FindDistance(desired_pose, localization_segments);*/
 }
 
 
@@ -93,13 +51,13 @@ int main(int argc, char **argv)
     facing.p1 = {4.62110, 1.15434};
     facing.p2 = {9.24219, 1.15434}; */
 
-    area.p1 = {5.88, -1.27};
-    area.p2 = {8.43, 1.27};
-    facing.p1 = {5.88, -1.27};
-    facing.p2 = {5.88, 1.27};
+    area.p1 = {4.55, -1.05};
+    area.p2 = {7.05, 1.05};
+    facing.p1 = {area.p1[0], area.p1[1]};
+    facing.p2 = {area.p1[0], area.p2[1]};
 
 
-    double F = 5;
+    double F = 10;
     ros::Rate loop_rate(F);
 
 
@@ -129,7 +87,7 @@ int main(int argc, char **argv)
             if (std::abs(pose_diff[0]) < 0.02 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.05*M_PI) {
                 twist_msg.linear.x = 0;
                 twist_msg.linear.y = 0;
-                twist_msg.angular.y = 0;
+                twist_msg.angular.z = 0;
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                 break;
             }
@@ -137,7 +95,7 @@ int main(int argc, char **argv)
             speed = CalculateSpeed(pose_diff, speed, F, laser, robot_width, PointCloud);
             twist_msg.linear.x = speed[0];
             twist_msg.linear.y = speed[1];
-            twist_msg.angular.y = speed[2];
+            twist_msg.angular.z = speed[2];
             ROS_INFO("Publish the speed");
             cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
             ROS_INFO("Recalculate robot pose");
@@ -154,7 +112,7 @@ int main(int argc, char **argv)
             if (std::abs(pose_diff[0]) < 0.02 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.05*M_PI) {
                 twist_msg.linear.x = 0;
                 twist_msg.linear.y = 0;
-                twist_msg.angular.y = 0;
+                twist_msg.angular.z = 0;
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                 break;
             }
@@ -163,7 +121,7 @@ int main(int argc, char **argv)
             ROS_INFO("Given speed: x: %f, y: %f, theta: %f", speed[0], speed[1], speed[2]);
             twist_msg.linear.x = speed[0];
             twist_msg.linear.y = speed[1];
-            twist_msg.angular.y = speed[2];
+            twist_msg.angular.z = speed[2];
             ROS_INFO("Publish the speed");
             cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
             ROS_INFO("Recalculate robot pose");
@@ -171,6 +129,18 @@ int main(int argc, char **argv)
 
             loop_rate.sleep();
         }
+        //-------------------------------------------Segmentation-----------------------------------------------------------
+        //ros::spinOnce();
+        //------------------------------------------Find cart---------------------------------------------------------------
+        //Segment cart = FindCart(segments, area, facing);
+        //------------------------------------------Find intermediate pose--------------------------------------------------
+        //std::vector<double> int_pose = FindDesiredPose(cart, robot_width+0.5, robot_width+0.1);
+        //------------------------------------------Find desired pose-------------------------------------------------------
+        //std::vector<double> desired_pose = FindDesiredPose(cart, 0, robot_width+0.1);
+        //------------------------------------------Filter the segments used for localization-------------------------------
+        //std::vector<Segment> localization_segments = CertaintyFilter(segments, 5, cart);
+        //------------------------------------------Find the desired distance to the objects--------------------------------
+        //std::vector<Distance> object_distance = FindDistance(desired_pose, localization_segments);
     }
     return 0;
 }
