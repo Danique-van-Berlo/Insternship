@@ -273,6 +273,15 @@ std::vector<Segment> FindObjects(std::vector<Segment>& segments, const std::vect
             }
         }
     }
+    if (certain_segments.empty()) {
+        ROS_INFO("No segments found that are perpendicular to the cart segment");
+        Segment empty_segment;
+        empty_segment.p1 = {0,0};
+        empty_segment.p2 = {0,0};
+        empty_segment.sigma = 0;
+        empty_segment.dv = {0,0};
+        certain_segments.push_back(empty_segment);
+    }
     return certain_segments;
 }
 /*-----------------------------------------------------------------------------------------------------------------------------*/
@@ -313,6 +322,16 @@ Segment FindCart(std::vector<Segment>& segments, Line area, Line facing) { /* J 
             }
         }
     }
+    if (cart_segment.p1.empty()) {
+        ROS_INFO("No cart Segment could be found");
+        Segment empty_segment;
+        empty_segment.p1 = {0,0};
+        empty_segment.p2 = {0,0};
+        empty_segment.sigma = 0;
+        empty_segment.dv = {0,0};
+        cart_segment = empty_segment;
+    }
+
     return cart_segment;
 }
 /*---------------------------------------------------------------------------------------------------------------------------*/
