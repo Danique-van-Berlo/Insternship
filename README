@@ -104,7 +104,7 @@ vector of the side of the cart to be docked.
 - FindDistance:
 (Description): In this function the distance between the begin and end point of the segment and the desired pose of the
 robot is calculated.
-(Input values): pose and segments.
+(Input values): pose, pose and segments.
 (Output values): vector of distances.
 
 - FindDesiredPose:
