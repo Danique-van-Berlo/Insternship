@@ -26,7 +26,6 @@ int FindHighestCertainty(std::vector<Segment> segments, Segment cart);
 Segment FindCart(std::vector<Segment>& segments, Line area, Line facing);
 std::vector<Distance> FindDistance(const std::vector<double>& desired_pose, const std::vector<Segment>& certainty_segments);
 std::vector<double> FindDesiredPose(Segment cart_segment, double range_x, double range_y);
-std::vector<double> FindAreaPose(Line facing);
 std::vector<double> CalculateError(std::vector<Distance> distances, std::vector<Segment> localization_segments);
 
 
