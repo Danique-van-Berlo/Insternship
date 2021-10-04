@@ -17,6 +17,7 @@ std::vector<double> CalculateError(std::vector<Distance> distances, std::vector<
 //Driving
 bool Wait(std::vector<std::vector<double>> pointcloud, double b, std::vector<double> pose_diff);
 std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double F, double b, std::vector<std::vector<double>>& pointcloud);
+std::vector<double> CalculatePositionSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double F);
 void SetTwistMessage(geometry_msgs::Twist& twist_msg, std::vector<double> speed);
 
 //EnvironmentOrientation

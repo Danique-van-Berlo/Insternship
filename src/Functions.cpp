@@ -114,8 +114,87 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
     double amax = 1.05;
     double awmax = (3*M_PI)/68;
     bool wait = Wait(pointcloud, b, pose_diff);
+    ROS_INFO("Calculating speed");
     std::vector<double> speed;
-    if ((pose_diff[2] > 0.05*M_PI || pose_diff[2] < -0.05*M_PI)  && (!wait)) {
+    if ((std::abs(pose_diff[2]) > 0.03*M_PI)) {
+        ROS_INFO("Calculate the speed in theta");
+        double vt = f*pose_diff[2];
+        double at = 0.5*f*(vt-old_speed[2]);
+        if (at > awmax){
+            at = awmax;
+        } else if (at < -awmax){
+            at = -awmax;
+        }
+        vt = old_speed[2] + at/f;
+        if (vt > wmax){
+            vt = wmax;
+        } else if (vt < -wmax){
+            vt = -wmax;
+        }
+        /* if (vt*vt/awmax >= pose_diff[2]) { Improve for deceleration
+            at = -awmax;
+            vt = old_speed[2] + at/f;
+        } */
+        speed = {0,0,vt};
+    } else if ((std::abs(pose_diff[1]) > 0.08)) {
+        ROS_INFO("Calculate the speed in y");
+        double vy = f*pose_diff[1];
+        double ay = 0.5*f*(vy-old_speed[1]);
+        if (ay > amax){
+            ay = amax;
+        } else if (ay < -amax){
+            ay = -amax;
+        }
+        vy = old_speed[1] + ay/f;
+        if (vy > vmax){
+            vy = vmax;
+        } else if (vy < -vmax){
+            vy = -vmax;
+        }
+        /* if (vy*vy/amax >= pose_diff[1]) { Improve for deceleration
+            ay = -amax;
+            vy = old_speed[1] + ay/f;
+        } */
+        speed = {0,vy,0};
+    } else if ((std::abs(pose_diff[0]) > 0.08)) {
+        ROS_INFO("Calculate the speed in x");
+        double vx = f*pose_diff[0];
+        double ax = 0.5*f*(vx-old_speed[0]);
+        if (ax > amax){
+            ax = amax;
+        } else if (ax < -amax){
+            ax = -amax;
+        }
+        vx = old_speed[0] + ax/f;
+        if (vx > vmax){
+            vx = vmax;
+        } else if (vx < -vmax){
+            vx = -vmax;
+        }
+        /* if (vx*vx/amax >= pose_diff[0]) { Improve for deceleration
+            ax = -amax;
+            vx = old_speed[0] + ax/f;
+        } */
+        speed = {vx,0,0};
+    } else {
+        ROS_INFO("theta: %f < 0.09424778", std::abs(pose_diff[2]));
+        ROS_INFO("y: %f < 0.08", std::abs(pose_diff[1]));
+        ROS_INFO("x: %f < 0.08", std::abs(pose_diff[0]));
+        speed = {0, 0, 0};
+    }
+    return speed;
+}
+/*----------------------------------------------------------------------------------------------------------------------*/
+std::vector<double> CalculatePositionSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double f) { /* F */
+    /* Velocity constraints */
+    double vmax = 1.0;
+    double wmax = (3*M_PI)/32;
+    /* Acceleration constraints */
+    double amax = 0.22;
+    double awmax = (3*M_PI)/68;
+    std::vector<double> speed;
+    ROS_INFO("Calculating speed");
+    if (std::abs(pose_diff[2]) > 0.01*M_PI) {
         ROS_INFO("Calculate the speed in theta");
         double vt = f*pose_diff[2];
         double at = f*(vt-old_speed[2]);
@@ -135,7 +214,7 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
             vt = old_speed[2] + at/f;
         } */
         speed = {0,0,vt};
-    } else if ((pose_diff[1] > 0.08 || pose_diff[1] < -0.08)  && (!wait)) {
+    } else if (std::abs(pose_diff[1]) > 0.08) {
         ROS_INFO("Calculate the speed in y");
         double vy = f*pose_diff[1];
         double ay = f*(vy-old_speed[1]);
@@ -155,7 +234,7 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
             vy = old_speed[1] + ay/f;
         } */
         speed = {0,vy,0};
-    } else if ((pose_diff[0] > 0.02 || pose_diff[0] < -0.02) && (!wait)) {
+    } else if (std::abs(pose_diff[0]) > 0.02) {
         ROS_INFO("Calculate the speed in x");
         double vx = f*pose_diff[0];
         double ax = f*(vx-old_speed[0]);
@@ -176,15 +255,18 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
         } */
         speed = {vx,0,0};
     } else {
-            speed = {0, 0, 0};
+        ROS_INFO("theta: |%f| < 0.05pi", pose_diff[2]);
+        ROS_INFO("y: |%f| < 0.05pi", pose_diff[1]);
+        ROS_INFO("x: |%f| < 0.05pi", pose_diff[0]);
+        speed = {0, 0, 0};
     }
     return speed;
 }
 /*----------------------------------------------------------------------------------------------------------------------*/
 std::vector<double> FindPoseDiff(std::vector<double> robot_pose, std::vector<double> destination) {
     double t = destination[2]-robot_pose[2];
-    double x = std::cos(destination[2])*(destination[0]-robot_pose[0])-std::sin(destination[2])*(destination[1]-robot_pose[1]); //change
-    double y = std::sin(destination[2])*(destination[0]-robot_pose[0])+std::cos(destination[2])*(destination[1]-robot_pose[1]); //change
+    double x = std::cos(t)*(destination[0]-robot_pose[0])-std::sin(t)*(destination[1]-robot_pose[1]); //change
+    double y = std::sin(t)*(destination[0]-robot_pose[0])+std::cos(t)*(destination[1]-robot_pose[1]); //change
     std::vector<double> pose_diff = {x, y, t};
     return pose_diff;
 }
@@ -313,13 +395,11 @@ std::vector<double> CalculateError(std::vector<Distance> distances, std::vector<
 }
 /*---------------------------------------------------------------------------------------------------------------------------*/
 std::vector<double> FindDesiredPose(Segment cart_segment, double range_x, double range_y) { /* L */
-    double dx = cart_segment.p2[0]-cart_segment.p1[0];
-    double dy = cart_segment.p2[1]-cart_segment.p1[1];
-    double mu = 1/(std::sqrt(dx*dx+dy*dy));
+    // range x is with normal vector and range y is with direction vector.
     ROS_INFO("Calculating pose");
-    double x = cart_segment.p2[0] + range_x*mu*dx + range_y*mu*dy;
+    double x = cart_segment.p2[0] + range_x*cart_segment.dv[1] + range_y*cart_segment.dv[0];
     ROS_INFO("Calculated x-position: %f", x);
-    double y = cart_segment.p2[1] + range_x*mu*dy - range_y*mu*dx;
+    double y = cart_segment.p2[1] - range_x*cart_segment.dv[0] + range_y*cart_segment.dv[1];
     ROS_INFO("Calculated y-position: %f", y);
     double alpha = RotationDifference(cart_segment.p1, cart_segment.p2);
     ROS_INFO("Calculated theta-position: %f", alpha);

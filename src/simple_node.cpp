@@ -104,7 +104,7 @@ int main(int argc, char **argv)
         {
             std::vector<double> pose_diff = FindPoseDiff(robot_pose, entrance_goal);
             ROS_INFO("Drive to entrance: Difference is: x=%f, y=%f and theta=%f", pose_diff[0], pose_diff[1], pose_diff[2]);
-            if (std::abs(pose_diff[0]) < 0.02 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.05*M_PI) {
+            if (std::abs(pose_diff[0]) < 0.08 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.03*M_PI) {
                 SetTwistMessage(twist_msg, {0,0,0});
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                 break;
@@ -121,7 +121,7 @@ int main(int argc, char **argv)
         {
             std::vector<double> pose_diff = FindPoseDiff(robot_pose, destination);
             ROS_INFO("Drive to cart area- Difference is: x=%f, y=%f and theta=%f", pose_diff[0], pose_diff[1], pose_diff[2]);
-            if (std::abs(pose_diff[0]) < 0.02 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.05*M_PI) {
+            if (std::abs(pose_diff[0]) < 0.08 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.03*M_PI) {
                 SetTwistMessage(twist_msg, {0,0,0});
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                 break;
@@ -154,23 +154,23 @@ int main(int argc, char **argv)
         ROS_INFO("Cart is found at (%f,%f) and (%f,%f)", cart.p1[0], cart.p1[1], cart.p2[0], cart.p2[1]);
         //------------------------------------------Find intermediate pose----------------------------------------------
         ROS_INFO("Start intermediate pose calculations");
-        std::vector<double> int_pose = FindDesiredPose(cart, 0.05, 0.01);
+        std::vector<double> int_pose = FindDesiredPose(cart, 0.5, robot_width+0.3);
         ROS_INFO("The intermediate pose is: (%f,%f,%f)", int_pose[0], int_pose[1], int_pose[2]);
         //------------------------------------------Find desired pose---------------------------------------------------
         ROS_INFO("Start desired pose calculations");
-        std::vector<double> desired_pose = FindDesiredPose(cart, 0, robot_width+0.1);
+        std::vector<double> desired_pose = FindDesiredPose(cart, 0, robot_width+0.3);
         ROS_INFO("The desired pose is: (%f,%f,%f)", desired_pose[0], desired_pose[1], desired_pose[2]);
         //------------------------------------------Filter the segments used for localization---------------------------
         std::vector<Segment> localization_segments = FindObjects(segments, desired_pose, cart);
         //------------------------------------------Find the desired distance to the objects----------------------------
-        std::vector<Distance> object_distance = FindDistance(desired_pose, localization_segments);
+        std::vector<Distance> object_distance = FindDistance(desired_pose, robot_pose, localization_segments);
 
         //---------------------------Drive to intermediate pose---------------------------------------------------------
         while (ros::ok())
         {
             std::vector<double> pose_diff = FindPoseDiff(robot_pose, int_pose);
             ROS_INFO("Drive to intermediate pose- Difference is: x=%f, y=%f and theta=%f", pose_diff[0], pose_diff[1], pose_diff[2]);
-            if (std::abs(pose_diff[0]) < 0.02 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.05*M_PI) {
+            if (std::abs(pose_diff[0]) < 0.08 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.03*M_PI) {
                 SetTwistMessage(twist_msg, {0,0,0});
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                 break;
@@ -187,18 +187,6 @@ int main(int argc, char **argv)
         while (ros::ok())
         {
             ros::spinOnce();
-            //----------------------Visualize segments------------------------------------------------
-            /*line_list.header.stamp = ros::Time::now();
-            for (auto & segment : segments){
-                point1.x = segment.p1[0];
-                point1.y = segment.p1[1];
-                point1.z = point2.z = 0;
-                point2.x = segment.p2[0];
-                point2.y = segment.p2[1];
-                line_list.points.push_back(point1);
-                line_list.points.push_back(point2);
-            }
-            marker_pub.publish(line_list);*/
             std::vector<Segment> localization2_segments = CompareSegments(localization_segments, segments, robot_pose);
             std::vector<double> error = CalculateError(object_distance, localization2_segments);
             ROS_INFO("Drive to destination- Difference is: x=%f, y=%f and theta=%f", error[0], error[1], error[2]);
@@ -207,7 +195,7 @@ int main(int argc, char **argv)
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                 break;
             }
-            speed = CalculateSpeed(error, speed, F, robot_width, PointCloud);
+            speed = CalculatePositionSpeed(error, speed, F);
             //ROS_INFO("Given speed: x: %f, y: %f, theta: %f", speed[0], speed[1], speed[2]);
             SetTwistMessage(twist_msg, speed);
             cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
