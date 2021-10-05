@@ -48,31 +48,38 @@ void MakingLineSegments(std::vector<Segment>& segments, std::vector<std::vector<
 
 /*------------------------------------------------------------------------------------------------------------------------*/
 
-double RotationDifference(std::vector<double> p1, std::vector<double> p2) { /* E */
-    double y1 = p1[1];
-    double dx = p2[0]-p1[0];
-    double dy = p2[1]-p1[1];
-    double alpha;
-    if (y1 < 0) {
-        alpha = -std::acos((dx)/(std::sqrt(dx*dx+dy*dy)))+M_PI_2;
-    } else {
-        alpha = std::acos((dx)/(std::sqrt(dx*dx+dy*dy)))+M_PI_2;
-    }
+double RotationDifference(std::vector<double> dv) { /* E */
+    double dx = dv[0];
+    double dy = dv[1];
+    double alpha = std::acos((dx)/(std::sqrt(dx*dx+dy*dy)));
+
     return alpha;
 }
 
 /*-----------------------------------------------------------------------------------------------------------------------*/
-
-std::vector<double> FindingEntrance(std::vector<Segment> segments, const std::vector<double>& robot_pose) { /* C */
+std::vector<double> FindingEntrance(std::vector<Segment>& segments, const std::vector<double>& robot_pose) { /* C */
     std::vector<double> pose = {0,0,0};
     for (int i =0; i < segments.size(); i++) {
         for (int j=i+1; j < (segments.size()); j++) {
-            double w = std::sqrt((segments[i].p1[0]-segments[j].p2[0])*(segments[i].p1[0]-segments[j].p2[0])+(segments[i].p1[1]-segments[j].p1[1])*(segments[i].p2[1]-segments[j].p2[1]));
-            if ((0.82 < w < 0.89 || 0.82 < 0.5*w < 0.89) && (segments[i].dv[0]-0.05)<segments[j].dv[0]<(segments[i].dv[0]+0.05) && (segments[i].dv[1]-0.05)<segments[j].dv[1]<(segments[i].dv[1]+0.05) && (segments[i].p2[0] != segments[j].p1[0] && segments[i].p2[1] != segments[j].p1[1])) {
-                double x = 0.5*(segments[i].p2[0]-segments[j].p1[0]);
-                double y = 0.5*(segments[i].p2[1]-segments[j].p1[1]);
-                double alpha = RotationDifference(segments[i].p1,segments[i].p2)+M_PI_2; //nog ff checken
-                pose = {x, y, alpha};
+            if ((std::abs(segments[i].dv[0])-0.05)<std::abs(segments[j].dv[0])<(std::abs(segments[i].dv[0])+0.05) && (std::abs(segments[i].dv[1])-0.05)<std::abs(segments[j].dv[1])<(std::abs(segments[i].dv[1])+0.05) && (segments[i].p2[0] != segments[j].p1[0] && segments[i].p2[1] != segments[j].p1[1])) {
+                double seg_midx = (segments[i].p1[0]+segments[i].p2[0])/2;
+                double seg_midy = (segments[i].p1[1]+segments[i].p2[1])/2;
+                double rvx = - segments[i].dv[1];
+                double rvy = segments[i].dv[0];
+                double dvx = segments[j].dv[0];
+                double dvy = segments[j].dv[1];
+                double px = segments[j].p1[0];
+                double py = segments[j].p1[1];
+                double lambda = (dvy*rvx)/(dvy*rvx-rvy*dvx)*((px-seg_midx)/rvx+(dvx/rvx)*(seg_midy-py)/dvy);
+                double ww = std::sqrt(lambda*rvx*lambda*rvx + lambda*rvy*lambda*rvy);
+                if ((0.82 < ww < 0.89 || 0.82 < 0.5*ww < 0.89) && pose[0] == 0) {
+                    double x = 0.5*(segments[i].p2[0]-segments[j].p1[0]);
+                    double y = 0.5*(segments[i].p2[1]-segments[j].p1[1]);
+                    double alpha = RotationDifference(segments[i].dv); //nog ff checken
+                    ROS_INFO("direction vector: x %f y %f", segments[i].dv[0], segments[i].dv[1]);
+                    pose = {x, y, alpha};
+                }
+
             }
         }
     }
@@ -84,6 +91,14 @@ std::vector<double> TransformPositionB(std::vector<double> old_point, std::vecto
     double y = std::sin(rel_pose[2])*old_point[0]+std::cos(rel_pose[2])*old_point[1] + rel_pose[1];
     std::vector<double> point = {x, y};
     return point;
+}
+/*-----------------------------------------------------------------------------------------------------------------------*/
+std::vector<double> TransformPose(std::vector<double> old_point, std::vector<double> rel_pose) { /* D */
+    double x = std::cos(rel_pose[2])*old_point[0]-std::sin(rel_pose[2])*old_point[1] + rel_pose[0];
+    double y = std::sin(rel_pose[2])*old_point[0]+std::cos(rel_pose[2])*old_point[1] + rel_pose[1];
+    double t = rel_pose[2];
+    std::vector<double> pose = {x, y, t};
+    return pose;
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
 bool Wait(std::vector<std::vector<double>> pointcloud, double b, std::vector<double> pose_diff) { /* G */
@@ -262,16 +277,24 @@ std::vector<double> CalculatePositionSpeed(std::vector<double> pose_diff, std::v
     }
     return speed;
 }
-/*----------------------------------------------------------------------------------------------------------------------*/
-std::vector<double> FindPoseDiff(std::vector<double> robot_pose, std::vector<double> destination) {
+/*------------------------------------------------------------------------------------------------------------------------*/
+std::vector<double> FindPoseDiff2(std::vector<double> robot_pose, std::vector<double> destination) {
     double t = destination[2]-robot_pose[2];
-    double x = std::cos(t)*(destination[0]-robot_pose[0])-std::sin(t)*(destination[1]-robot_pose[1]); //change
-    double y = std::sin(t)*(destination[0]-robot_pose[0])+std::cos(t)*(destination[1]-robot_pose[1]); //change
+    double x = -std::cos(robot_pose[2])*(destination[0]-robot_pose[0])+std::sin(robot_pose[2])*(destination[1]-robot_pose[1]);
+    double y = -std::sin(robot_pose[2])*(destination[0]-robot_pose[0])-std::cos(robot_pose[2])*(destination[1]-robot_pose[1]);
     std::vector<double> pose_diff = {x, y, t};
     return pose_diff;
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
-std::vector<Segment> CompareSegments(std::vector<Segment> old_segments, std::vector<Segment> new_segments, const std::vector<double>& robot_pose) { /* H */
+std::vector<double> FindPoseDiff(std::vector<double> robot_pose, std::vector<double> destination) {
+    double t = destination[2]-robot_pose[2];
+    double x = std::cos(robot_pose[2])*(destination[0]-robot_pose[0])-std::sin(robot_pose[2])*(destination[1]-robot_pose[1]); //change
+    double y = std::sin(robot_pose[2])*(destination[0]-robot_pose[0])+std::cos(robot_pose[2])*(destination[1]-robot_pose[1]); //change
+    std::vector<double> pose_diff = {x, y, t};
+    return pose_diff;
+}
+/*------------------------------------------------------------------------------------------------------------------------*/
+std::vector<Segment> CompareSegments(std::vector<Segment>& old_segments, std::vector<Segment>& new_segments, const std::vector<double>& robot_pose) { /* H */
     std::vector<Segment> match;
     for( int i = 0; i < old_segments.size(); i++) {
         for ( int j = 0; j < new_segments.size(); j++) {
@@ -384,7 +407,7 @@ std::vector<Distance> FindDistance(const std::vector<double>& desired_pose, cons
     return distances;
 }
 /*-------------------------------------------------------------------------------------------------------------------------*/
-std::vector<double> CalculateError(std::vector<Distance> distances, std::vector<Segment> localization_segments) {
+std::vector<double> CalculateError(std::vector<Distance>& distances, std::vector<Segment>& localization_segments) {
     std::vector<double> error = {0,0,0};
     for (int i = 0; i < distances.size(); i++) {
         error[0] = error[0] + ((localization_segments[i].p1[0]-distances[i].p1[0]) + (localization_segments[i].p2[0]-distances[i].p2[0]))/double(2*distances.size());
@@ -397,32 +420,29 @@ std::vector<double> CalculateError(std::vector<Distance> distances, std::vector<
 std::vector<double> FindDesiredPose(Segment cart_segment, double range_x, double range_y) { /* L */
     // range x is with normal vector and range y is with direction vector.
     ROS_INFO("Calculating pose");
-    double x = cart_segment.p2[0] + range_x*cart_segment.dv[1] + range_y*cart_segment.dv[0];
+    double x = cart_segment.p2[0] - range_x*cart_segment.dv[1] + range_y*cart_segment.dv[0];
     ROS_INFO("Calculated x-position: %f", x);
-    double y = cart_segment.p2[1] - range_x*cart_segment.dv[0] + range_y*cart_segment.dv[1];
+    double y = cart_segment.p2[1] + range_x*cart_segment.dv[0] + range_y*cart_segment.dv[1];
     ROS_INFO("Calculated y-position: %f", y);
-    double alpha = RotationDifference(cart_segment.p1, cart_segment.p2);
+    double alpha = RotationDifference(cart_segment.dv);
     ROS_INFO("Calculated theta-position: %f", alpha);
     std::vector<double> pose = {x, y, alpha};
     return pose;
 }
 /*-----------------------------------------------------------------------------------------------------------------------------------------------*/
-void FindAreaPose(Line facing, std::vector<double>& destination) { /* O */
-    double facing_angle = RotationDifference(facing.p1, facing.p2);
-    if (std::sqrt(facing.p1[0]*facing.p1[0]+facing.p1[1]*facing.p1[1]) < std::sqrt(facing.p2[0]*facing.p2[0]+facing.p2[1]*facing.p2[1]) ) {
-        ROS_INFO("Point 1 was closer");
-        destination.push_back(facing.p1[0]);
-        destination.push_back(facing.p1[1]);
-        destination.push_back(facing_angle);
-    } else {
-        ROS_INFO("Point 2 was closer");
-        destination.push_back(facing.p1[0]);
-        destination.push_back(facing.p1[1]);
-        destination.push_back(facing_angle);
-    }
+void FindAreaPose(Line& facing, std::vector<double>& destination) { /* O */
+    std::vector<double> dv;
+    double dx = facing.p2[0]-facing.p1[0];
+    double dy = facing.p2[1]-facing.p1[1];
+    dv.push_back(1/(std::sqrt(dx*dx+dy*dy))*dx);
+    dv.push_back(1/(std::sqrt(dx*dx+dy*dy))*dy);
+    double facing_angle = RotationDifference(dv);
+    destination.push_back((facing.p1[0]+facing.p2[0])/2);
+    destination.push_back((facing.p1[1]+facing.p2[1])/2);
+    destination.push_back(facing_angle);
 }
 /*---------------------------------------------------------------------------------------------------------------------------------------------*/
-void ResetSegmentFrame(std::vector<Segment>& segments, std::vector<double> robot_pose) {
+void ResetSegmentFrame(std::vector<Segment>& segments, std::vector<double>& robot_pose) {
     for(auto & segment : segments) {
         segment.p1[0] = std::cos(robot_pose[2])*segment.p1[0]+std::sin(robot_pose[2])*segment.p1[1]+robot_pose[0];
         segment.p1[1] = std::sin(robot_pose[2])*segment.p1[0]-std::cos(robot_pose[2])*segment.p1[1]+robot_pose[1];
