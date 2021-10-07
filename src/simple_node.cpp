@@ -91,7 +91,7 @@ int main(int argc, char **argv)
             FindAreaPose(facing, destination);
             ROS_INFO("The destination is: (%f,%f,%f)", destination[0], destination[1], destination[2]);
             //---------------------------Drive past entrance----------------------------------------------------------------
-            static const std::vector<double> entrance_goal = TransformPose({2,0,0}, entrance);
+            static const std::vector<double> entrance_goal = TransformPose({7,0,0}, entrance);
             ROS_INFO("Past entrance goal is: %f %f %f", entrance_goal[0], entrance_goal[1], entrance_goal[2]);
             int i = 0;
             while (ros::ok()) {
@@ -102,9 +102,8 @@ int main(int argc, char **argv)
                     cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                     break;
                 }
-                speed = CalculateSpeed(pose_diff, robot_vel, F, robot_width, PointCloud, area);
-                ROS_INFO("speed: %f %f %f", speed[0], speed[1], speed[2]);
-                ROS_INFO("ropod vel: %f %f %f", robot_vel[0], robot_vel[1], robot_vel[2]);
+                speed = CalculateSpeed2(pose_diff, entrance_goal, robot_vel, F, robot_width, PointCloud, area);
+                ROS_INFO("speed %f %f %f", speed[0], speed[1], speed[2]);
                 SetTwistMessage(twist_msg, speed);
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
 
@@ -133,6 +132,7 @@ int main(int argc, char **argv)
                 marker_pub.publish(line_list);
 
                 CalculateNewRobotPose (robot_pose, robot_vel, F);
+                ROS_INFO("robot pose %f %f %f", robot_pose[0], robot_pose[1], robot_pose[2]);
 
                 loop_rate.sleep();
             }
@@ -147,8 +147,7 @@ int main(int argc, char **argv)
                     cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                     break;
                 }
-                speed = CalculateSpeed(pose_diff, speed, F, robot_width, PointCloud, area);
-                //ROS_INFO("Given speed: x: %f, y: %f, theta: %f", speed[0], speed[1], speed[2]);
+                speed = CalculateSpeed2(pose_diff, destination, speed, F, robot_width, PointCloud, area);
                 SetTwistMessage(twist_msg, speed);
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
 
@@ -180,6 +179,7 @@ int main(int argc, char **argv)
 
                 loop_rate.sleep();
             }
+            ros::shutdown();
             //-------------------------------------------Segmentation-------------------------------------------------------
             ros::spinOnce();
             //------------------------------------------Find cart-----------------------------------------------------------
@@ -210,7 +210,6 @@ int main(int argc, char **argv)
                     break;
                 }
                 speed = CalculateSpeed(pose_diff, speed, F, robot_width, PointCloud, area);
-                ROS_INFO("Given speed: x: %f, y: %f, theta: %f", speed[0], speed[1], speed[2]);
                 SetTwistMessage(twist_msg, speed);
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
 
@@ -254,7 +253,6 @@ int main(int argc, char **argv)
                     break;
                 }
                 speed = CalculatePositionSpeed(error, speed, F);
-                //ROS_INFO("Given speed: x: %f, y: %f, theta: %f", speed[0], speed[1], speed[2]);
                 SetTwistMessage(twist_msg, speed);
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
 

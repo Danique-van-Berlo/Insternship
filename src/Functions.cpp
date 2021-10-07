@@ -12,20 +12,17 @@ void MakingLineSegments(std::vector<Segment>& segments, std::vector<std::vector<
     double yd;
     if (i+6+n < pointcloud.size()) {
         std::vector<double> p1 = pointcloud[i];
-        std::vector<double> p2 = pointcloud[i+5+n];
-        std::vector<double> p3 = pointcloud[i+4+n];
+        std::vector<double> p2 = pointcloud[i+n+1];
+        std::vector<double> p3 = pointcloud[i+n];
         double lambda = 0;
         xd = (1/(std::sqrt((p2[0]-p1[0])*(p2[0]-p1[0])+(p2[1]-p1[1])*(p2[1]-p1[1]))))*(p2[0]-p1[0]);
         yd = (1/(std::sqrt((p2[0]-p1[0])*(p2[0]-p1[0])+(p2[1]-p1[1])*(p2[1]-p1[1]))))*(p2[1]-p1[1]);
-        for (int j = 0; j < 6+n; j++) {
-            //ROS_INFO("Segment %zu consists of cloud number %d", segments.size(), index[i+j]);
+        for (int j = 0; j < 1+n; j++) {
             lambda = lambda + (std::abs(xd*(-pointcloud[i+j][1]+p1[1])+yd*(pointcloud[i+j][0]-p1[0])))/(5+n);
         }
-        if (lambda < 0.0001 && index[i+n+5]-index[i] == n+5) {
-            //ROS_INFO("adding: %d - %d = %d", index[i+n+5], index[i], n+5);
+        if (lambda < 0.001 || n < 4) {
             MakingLineSegments(segments,pointcloud, index, i, n + 1, lambda);
-        } else if (lambda >= 0.0001 || index[i+n+4]-index[i] == n+4) {
-            //ROS_INFO("saving: %d - %d = %d", index[i+n+4], index[i], n+4);
+        } else if (lambda >= 0.001 && lambda_old < 0.001) {
             segment.p1 = p1;
             segment.p2 = p3;
             xd = (1 / (std::sqrt((p3[0] - p1[0]) * (p3[0] - p1[0]) + (p3[1] - p1[1]) * (p3[1] - p1[1])))) *
@@ -34,15 +31,13 @@ void MakingLineSegments(std::vector<Segment>& segments, std::vector<std::vector<
                  (p3[1] - p1[1]);
             segment.dv = {xd, yd};
             segments.push_back(segment);
-            if (index[i+n+5] == index[i+n+4]+1) {
+            if (index[i+n+1] == index[i+n]+1) {
                 MakingLineSegments(segments,pointcloud, index, i + n + 4, 0, 0);
             } else {
                 MakingLineSegments(segments,pointcloud, index, i + n + 5, 0, 0);
             }
 
         } else {
-            //ROS_INFO("%d - %d = %d", index[i+n+5], index[i], n+5);
-            //ROS_INFO("%d - %d = %d", index[i+n+4], index[i], n+4);
             MakingLineSegments(segments,pointcloud, index, i + 1, 0, 0);
         }
     } else {
@@ -85,7 +80,6 @@ std::vector<double> FindingEntrance(std::vector<Segment>& segments, const std::v
                     double x = 0.5*(segments[i].p2[0]-segments[j].p1[0]);
                     double y = 0.5*(segments[i].p2[1]-segments[j].p1[1]);
                     double alpha = RotationDifference(segments[i].dv)+robot_pose[2];
-                    ROS_INFO("direction vector: x %f y %f", segments[i].dv[0], segments[i].dv[1]);
                     pose = {x, y, alpha};
                 }
 
@@ -130,15 +124,48 @@ bool Wait(std::vector<std::vector<double>> pointcloud, double b, Line area) { /*
     return wait;
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
-std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double f, double b, std::vector<std::vector<double>>& pointcloud, Line area) { /* F */
-    /* Velocity constraints */
+std::vector<double> CalculateSpeed2(std::vector<double> pose_diff, std::vector<double> goal, std::vector<double> old_speed, double f, double b, std::vector<std::vector<double>>& pointcloud, Line area) { /* F */
     double vmax = 3.5;
     double wmax = (3*M_PI)/32;
-    /* Acceleration constraints */
+    // Gebruik niet goal maar init pose diff ofzo?
     double amax = 1.05;
     double awmax = (3*M_PI)/68;
     bool wait = Wait(pointcloud, b, std::move(area));
-    ROS_INFO("Calculating speed");
+    std::vector<double> speed;
+    if ((std::abs(pose_diff[2]) > 0.03*M_PI) && !wait) { //add something for judging if it should do x,y or theta.
+        ROS_INFO("Calculate the speed in theta");
+        if (old_speed[2] < std::sqrt(goal[2]*awmax)) {
+            speed = {0, 0, old_speed[2]+awmax/f};
+        } else {
+            speed = {0, 0, old_speed[2]-awmax/f};
+        }
+    } else  if ((std::abs(pose_diff[1]) > 0.08) && !wait) {
+        ROS_INFO("Calculate the speed in y");
+        if (old_speed[1] < std::sqrt(goal[1]*amax)) {
+            speed = {0, old_speed[1]+awmax/f, 0};
+        } else {
+            speed = {0, old_speed[1]-awmax/f, 0};
+        }
+    } else  if ((std::abs(pose_diff[0]) > 0.08) && !wait) {
+        ROS_INFO("Calculate the speed in x");
+        if (old_speed[0] < std::sqrt(goal[0]*awmax)) {
+            speed = {old_speed[0]+awmax/f, 0, 0};
+        } else {
+            speed = {old_speed[0]-awmax/f, 0, 0};
+        }
+    } else {
+        speed = {0, 0, 0};
+    }
+    return speed;
+}
+
+/*------------------------------------------------------------------------------------------------------------------------*/
+std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double f, double b, std::vector<std::vector<double>>& pointcloud, Line area) { /* F */
+    double vmax = 3.5;
+    double wmax = (3*M_PI)/32;
+    double amax = 1.05;
+    double awmax = (3*M_PI)/68;
+    bool wait = Wait(pointcloud, b, std::move(area));
     std::vector<double> speed;
     if ((std::abs(pose_diff[2]) > 0.03*M_PI) && !wait) {
         ROS_INFO("Calculate the speed in theta");
@@ -155,10 +182,6 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
         } else if (vt < -wmax){
             vt = -wmax;
         }
-        /* if (vt*vt/awmax >= pose_diff[2]) { Improve for deceleration
-            at = -awmax;
-            vt = old_speed[2] + at/f;
-        } */
         speed = {0,0,vt};
     } else if ((std::abs(pose_diff[1]) > 0.08) && !wait) {
         ROS_INFO("Calculate the speed in y");
@@ -175,10 +198,6 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
         } else if (vy < -vmax){
             vy = -vmax;
         }
-        /* if (vy*vy/amax >= pose_diff[1]) { Improve for deceleration
-            ay = -amax;
-            vy = old_speed[1] + ay/f;
-        } */
         speed = {0,vy,0};
     } else if ((std::abs(pose_diff[0]) > 0.08) && !wait) {
         ROS_INFO("Calculate the speed in x");
@@ -195,10 +214,6 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
         } else if (vx < -vmax){
             vx = -vmax;
         }
-        /* if (vx*vx/amax >= pose_diff[0]) { Improve for deceleration
-            ax = -amax;
-            vx = old_speed[0] + ax/f;
-        } */
         speed = {vx,0,0};
     } else {
         speed = {0, 0, 0};
@@ -214,7 +229,6 @@ std::vector<double> CalculatePositionSpeed(std::vector<double> pose_diff, std::v
     double amax = 0.22;
     double awmax = (3*M_PI)/68;
     std::vector<double> speed;
-    ROS_INFO("Calculating speed");
     if (std::abs(pose_diff[2]) > 0.01*M_PI) {
         ROS_INFO("Calculate the speed in theta");
         double vt = f*pose_diff[2];
@@ -230,10 +244,6 @@ std::vector<double> CalculatePositionSpeed(std::vector<double> pose_diff, std::v
         } else if (vt < -wmax){
             vt = -wmax;
         }
-        /* if (vt*vt/awmax >= pose_diff[2]) { Improve for deceleration
-            at = -awmax;
-            vt = old_speed[2] + at/f;
-        } */
         speed = {0,0,vt};
     } else if (std::abs(pose_diff[1]) > 0.08) {
         ROS_INFO("Calculate the speed in y");
@@ -250,10 +260,7 @@ std::vector<double> CalculatePositionSpeed(std::vector<double> pose_diff, std::v
         } else if (vy < -vmax){
             vy = -vmax;
         }
-        /* if (vy*vy/amax >= pose_diff[1]) { Improve for deceleration
-            ay = -amax;
-            vy = old_speed[1] + ay/f;
-        } */
+
         speed = {0,vy,0};
     } else if (std::abs(pose_diff[0]) > 0.02) {
         ROS_INFO("Calculate the speed in x");
@@ -270,15 +277,8 @@ std::vector<double> CalculatePositionSpeed(std::vector<double> pose_diff, std::v
         } else if (vx < -vmax){
             vx = -vmax;
         }
-        /* if (vx*vx/amax >= pose_diff[0]) { Improve for deceleration
-            ax = -amax;
-            vx = old_speed[0] + ax/f;
-        } */
         speed = {vx,0,0};
     } else {
-        ROS_INFO("theta: |%f| < 0.05pi", pose_diff[2]);
-        ROS_INFO("y: |%f| < 0.05pi", pose_diff[1]);
-        ROS_INFO("x: |%f| < 0.05pi", pose_diff[0]);
         speed = {0, 0, 0};
     }
     return speed;
@@ -369,6 +369,7 @@ std::vector<Segment> FindObjects(std::vector<Segment>& segments, const std::vect
 }
 /*-----------------------------------------------------------------------------------------------------------------------------*/
 void SetTwistMessage(geometry_msgs::Twist& twist_msg, std::vector<double> speed) {
+    ROS_INFO("speed: %f %f %f", speed[0], speed[1], speed[2]);
     twist_msg.linear.x = speed[0];
     twist_msg.linear.y = speed[1];
     twist_msg.angular.z = speed[2];
