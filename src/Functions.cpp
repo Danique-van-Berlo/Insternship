@@ -22,10 +22,10 @@ void MakingLineSegments(std::vector<Segment>& segments, std::vector<std::vector<
             lambda = lambda + (std::abs(xd*(-pointcloud[i+j][1]+p1[1])+yd*(pointcloud[i+j][0]-p1[0])))/(5+n);
         }
         if (lambda < 0.0001 && index[i+n+5]-index[i] == n+5) {
-            ROS_INFO("adding: %d - %d = %d", index[i+n+5], index[i], n+5);
+            //ROS_INFO("adding: %d - %d = %d", index[i+n+5], index[i], n+5);
             MakingLineSegments(segments,pointcloud, index, i, n + 1, lambda);
         } else if (lambda >= 0.0001 || index[i+n+4]-index[i] == n+4) {
-            ROS_INFO("saving: %d - %d = %d", index[i+n+4], index[i], n+4);
+            //ROS_INFO("saving: %d - %d = %d", index[i+n+4], index[i], n+4);
             segment.p1 = p1;
             segment.p2 = p3;
             xd = (1 / (std::sqrt((p3[0] - p1[0]) * (p3[0] - p1[0]) + (p3[1] - p1[1]) * (p3[1] - p1[1])))) *
@@ -41,8 +41,8 @@ void MakingLineSegments(std::vector<Segment>& segments, std::vector<std::vector<
             }
 
         } else {
-            ROS_INFO("%d - %d = %d", index[i+n+5], index[i], n+5);
-            ROS_INFO("%d - %d = %d", index[i+n+4], index[i], n+4);
+            //ROS_INFO("%d - %d = %d", index[i+n+5], index[i], n+5);
+            //ROS_INFO("%d - %d = %d", index[i+n+4], index[i], n+4);
             MakingLineSegments(segments,pointcloud, index, i + 1, 0, 0);
         }
     } else {
@@ -300,6 +300,14 @@ std::vector<double> FindPoseDiff(std::vector<double> robot_pose, const std::vect
     return pose_diff;
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
+std::vector<double> FindPoseDiff3(std::vector<double> robot_pose, const std::vector<double>& destination) {
+    double t = destination[2]-robot_pose[2];
+    double x = std::cos(robot_pose[2])*(destination[0]-robot_pose[0])+std::sin(robot_pose[2])*(destination[1]-robot_pose[1]); //change
+    double y = -std::sin(robot_pose[2])*(destination[0]-robot_pose[0])+std::cos(robot_pose[2])*(destination[1]-robot_pose[1]); //change
+    std::vector<double> pose_diff = {x, y, t};
+    return pose_diff;
+}
+/*------------------------------------------------------------------------------------------------------------------------*/
 std::vector<Segment> CompareSegments(std::vector<Segment>& old_segments, std::vector<Segment>& new_segments, const std::vector<double>& robot_pose) { /* H */
     std::vector<Segment> match;
     for( int i = 0; i < old_segments.size(); i++) {
@@ -449,4 +457,11 @@ void ResetSegmentFrame(std::vector<Segment>& segments, std::vector<double>& robo
         segment.p2[0] = std::cos(robot_pose[2])*segment.p2[0]+std::sin(robot_pose[2])*segment.p2[1]+robot_pose[0];
         segment.p2[1] = std::sin(robot_pose[2])*segment.p2[0]-std::cos(robot_pose[2])*segment.p2[1]+robot_pose[1];
     }
+}
+
+void CalculateNewRobotPose (std::vector<double>& pose, std::vector<double>& vel, double F) {
+    double t = pose[2]+vel[2]/F;
+    double x = std::cos(pose[2])*vel[0]/F - std::sin(pose[2])*vel[1]/F + pose[0];
+    double y = std::cos(pose[2])*vel[1]/F + std::sin(pose[2])*vel[0]/F + pose[1];
+    pose = {x, y, t};
 }

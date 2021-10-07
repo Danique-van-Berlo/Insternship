@@ -11,6 +11,7 @@ std::vector<double> TransformPositionB(std::vector<double> old_point, std::vecto
 std::vector<double> TransformPose(std::vector<double> old_point, std::vector<double> rel_pose);
 std::vector<double> FindPoseDiff(std::vector<double> robot_pose, const std::vector<double>& destination);
 std::vector<double> FindPoseDiff2(std::vector<double> robot_pose, std::vector<double> destination);
+std::vector<double> FindPoseDiff3(std::vector<double> robot_pose, const std::vector<double>& destination);
 void ResetSegmentFrame(std::vector<Segment>& segments, std::vector<double>& robot_pose);
 std::vector<Distance> FindDistance(const std::vector<double>& desired_pose, const std::vector<double>& robot_pose, const std::vector<Segment>& certainty_segments);
 std::vector<double> FindDesiredPose(Segment cart_segment, double range_x, double range_y);
@@ -28,5 +29,7 @@ std::vector<Segment> FindObjects(std::vector<Segment>& segments, const std::vect
 Segment FindCart(std::vector<Segment>& segments, Line area, Line facing);
 std::vector<double> FindingEntrance(std::vector<Segment>& segments, const std::vector<double>& robot_pose);
 void FindAreaPose(Line& facing, std::vector<double>& destination);
+
+void CalculateNewRobotPose (std::vector<double>& pose, std::vector<double>& vel, double F);
 
 #endif //DANIQUE_FUNCTIONS_H
