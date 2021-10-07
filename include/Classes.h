@@ -5,7 +5,6 @@ class Segment {
 public:
     std::vector<double> p1;
     std::vector<double> p2;
-    double sigma;
     std::vector<double> dv;
 };
 
@@ -21,5 +20,7 @@ public:
     std::vector<double> p2;
     std::vector<double> dv;
 };
+
+
 
 #endif //DANIQUE_CLASSES_H

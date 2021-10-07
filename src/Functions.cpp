@@ -1,53 +1,63 @@
 #include "ros/ros.h"
 #include "geometry_msgs/Twist.h"
 #include "Functions.h"
+
+#include <utility>
 #include "Classes.h"
 
 
-void MakingLineSegments(std::vector<Segment>& segments, std::vector<std::vector<double>> pointcloud, int i, int n, double lambda_old) { /* B */
+void MakingLineSegments(std::vector<Segment>& segments, std::vector<std::vector<double>> pointcloud, std::vector<int> index, int i, int n, double lambda_old) { /* B */
     Segment segment;
-    //ROS_INFO("begin point %i, end point %i", i, i+n+5);
-    std::vector<double> p1 = pointcloud[i]; //begin point
-    std::vector<double> p2 = pointcloud[i+5+n]; //end point
-    std::vector<double> p3 = pointcloud[i+4+n]; //one before end point
-    double lambda = 0;
-    double xd = (1/(std::sqrt((p2[0]-p1[0])*(p2[0]-p1[0])+(p2[1]-p1[1])*(p2[1]-p1[1]))))*(p2[0]-p1[0]);
-    double yd = (1/(std::sqrt((p2[0]-p1[0])*(p2[0]-p1[0])+(p2[1]-p1[1])*(p2[1]-p1[1]))))*(p2[1]-p1[1]);
-    for (int j = 0; j < 5+n; j++) {
-        lambda = lambda + (std::abs(xd*(-pointcloud[i+j][1]+p1[1])+yd*(pointcloud[i+j][0]-p1[0])))/(5+n);
-    }
-   // ROS_INFO("lambda: %f", lambda);
-
-    if (i+6+n < pointcloud.size()) { //If it is the last point turn into a segment.
-        if (lambda < 0.0001) { // segment binnen threshold
-            //ROS_INFO("%s", "Add next point");
-            MakingLineSegments(segments,pointcloud, i, n + 1, lambda);
-        } else if (lambda >= 0.0001) { /* segment buiten threshold */
-            //ROS_INFO("%s", "Save segments: in threshold");
+    double xd;
+    double yd;
+    if (i+6+n < pointcloud.size()) {
+        std::vector<double> p1 = pointcloud[i];
+        std::vector<double> p2 = pointcloud[i+5+n];
+        std::vector<double> p3 = pointcloud[i+4+n];
+        double lambda = 0;
+        xd = (1/(std::sqrt((p2[0]-p1[0])*(p2[0]-p1[0])+(p2[1]-p1[1])*(p2[1]-p1[1]))))*(p2[0]-p1[0]);
+        yd = (1/(std::sqrt((p2[0]-p1[0])*(p2[0]-p1[0])+(p2[1]-p1[1])*(p2[1]-p1[1]))))*(p2[1]-p1[1]);
+        for (int j = 0; j < 6+n; j++) {
+            //ROS_INFO("Segment %zu consists of cloud number %d", segments.size(), index[i+j]);
+            lambda = lambda + (std::abs(xd*(-pointcloud[i+j][1]+p1[1])+yd*(pointcloud[i+j][0]-p1[0])))/(5+n);
+        }
+        if (lambda < 0.0001 && index[i+n+5]-index[i] == n+5) {
+            ROS_INFO("adding: %d - %d = %d", index[i+n+5], index[i], n+5);
+            MakingLineSegments(segments,pointcloud, index, i, n + 1, lambda);
+        } else if (lambda >= 0.0001 || index[i+n+4]-index[i] == n+4) {
+            ROS_INFO("saving: %d - %d = %d", index[i+n+4], index[i], n+4);
             segment.p1 = p1;
             segment.p2 = p3;
-            segment.sigma = 1 - lambda_old / 0.0001;
             xd = (1 / (std::sqrt((p3[0] - p1[0]) * (p3[0] - p1[0]) + (p3[1] - p1[1]) * (p3[1] - p1[1])))) *
                  (p3[0] - p1[0]);
             yd = (1 / (std::sqrt((p3[0] - p1[0]) * (p3[0] - p1[0]) + (p3[1] - p1[1]) * (p3[1] - p1[1])))) *
                  (p3[1] - p1[1]);
             segment.dv = {xd, yd};
-            //ROS_INFO("push back segment sigma: %f", segment.sigma);
             segments.push_back(segment);
-            //ROS_INFO("number of segments: %zu", segments.size());
-            MakingLineSegments(segments,pointcloud, i + n + 4, 0, 0);
+            if (index[i+n+5] == index[i+n+4]+1) {
+                MakingLineSegments(segments,pointcloud, index, i + n + 4, 0, 0);
+            } else {
+                MakingLineSegments(segments,pointcloud, index, i + n + 5, 0, 0);
+            }
+
+        } else {
+            ROS_INFO("%d - %d = %d", index[i+n+5], index[i], n+5);
+            ROS_INFO("%d - %d = %d", index[i+n+4], index[i], n+4);
+            MakingLineSegments(segments,pointcloud, index, i + 1, 0, 0);
         }
     } else {
-        segment.p1 = p1;
-        segment.p2 = p2;
-        segment.sigma = 1 - lambda / 0.03;
+        segment.p1 = pointcloud[i];
+        segment.p2 = pointcloud[pointcloud.size()-1];
+        xd = (1 / (std::sqrt((segment.p2[0] - segment.p1[0]) * (segment.p2[0] - segment.p1[0]) + (segment.p2[1] - segment.p1[1]) * (segment.p2[1] - segment.p1[1])))) *
+             (segment.p2[0] - segment.p1[0]);
+        yd = (1 / (std::sqrt((segment.p2[0] - segment.p1[0]) * (segment.p2[0] - segment.p1[0]) + (segment.p2[1] - segment.p1[1]) * (segment.p2[1] - segment.p1[1])))) *
+             (segment.p2[1] - segment.p1[1]);
         segment.dv = {xd, yd};
         segments.push_back(segment);
     }
 }
 
 /*------------------------------------------------------------------------------------------------------------------------*/
-
 double RotationDifference(std::vector<double> dv) { /* E */
     double dx = dv[0];
     double dy = dv[1];
@@ -55,7 +65,6 @@ double RotationDifference(std::vector<double> dv) { /* E */
 
     return alpha;
 }
-
 /*-----------------------------------------------------------------------------------------------------------------------*/
 std::vector<double> FindingEntrance(std::vector<Segment>& segments, const std::vector<double>& robot_pose) { /* C */
     std::vector<double> pose = {0,0,0};
@@ -75,7 +84,7 @@ std::vector<double> FindingEntrance(std::vector<Segment>& segments, const std::v
                 if ((0.82 < ww < 0.89 || 0.82 < 0.5*ww < 0.89) && pose[0] == 0) {
                     double x = 0.5*(segments[i].p2[0]-segments[j].p1[0]);
                     double y = 0.5*(segments[i].p2[1]-segments[j].p1[1]);
-                    double alpha = RotationDifference(segments[i].dv); //nog ff checken
+                    double alpha = RotationDifference(segments[i].dv)+robot_pose[2];
                     ROS_INFO("direction vector: x %f y %f", segments[i].dv[0], segments[i].dv[1]);
                     pose = {x, y, alpha};
                 }
@@ -101,37 +110,37 @@ std::vector<double> TransformPose(std::vector<double> old_point, std::vector<dou
     return pose;
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
-bool Wait(std::vector<std::vector<double>> pointcloud, double b, std::vector<double> pose_diff) { /* G */
+bool Wait(std::vector<std::vector<double>> pointcloud, double b, Line area) { /* G */
     double d = 0.5;
     double delta = 0.1;
     int n = 0;
     bool wait;
     for (auto & i : pointcloud) {
-        if (std::abs(i[1]) > d*i[0]/(2*b+delta) && pose_diff[0] > 0.5 && pose_diff[1] > 0.5) {
+        if (std::abs(i[1]) < d*i[0]/(2*b+delta) && area.p1[0] > i[0] > area.p2[0] && area.p1[1] > i[1] < area.p2[1]) {
             n += 1;
         }
     }
-    if (n > 5) {
+    if (n > 300) {
         wait = true;
-        //ROS_INFO("Now waiting");
+        ROS_INFO("Now waiting");
     } else {
         wait = false;
-        //ROS_INFO("Now driving");
+        ROS_INFO("Now driving");
     }
     return wait;
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
-std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double f, double b, std::vector<std::vector<double>>& pointcloud) { /* F */
+std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double f, double b, std::vector<std::vector<double>>& pointcloud, Line area) { /* F */
     /* Velocity constraints */
     double vmax = 3.5;
     double wmax = (3*M_PI)/32;
     /* Acceleration constraints */
     double amax = 1.05;
     double awmax = (3*M_PI)/68;
-    bool wait = Wait(pointcloud, b, pose_diff);
+    bool wait = Wait(pointcloud, b, std::move(area));
     ROS_INFO("Calculating speed");
     std::vector<double> speed;
-    if ((std::abs(pose_diff[2]) > 0.03*M_PI)) {
+    if ((std::abs(pose_diff[2]) > 0.03*M_PI) && !wait) {
         ROS_INFO("Calculate the speed in theta");
         double vt = f*pose_diff[2];
         double at = 0.5*f*(vt-old_speed[2]);
@@ -151,7 +160,7 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
             vt = old_speed[2] + at/f;
         } */
         speed = {0,0,vt};
-    } else if ((std::abs(pose_diff[1]) > 0.08)) {
+    } else if ((std::abs(pose_diff[1]) > 0.08) && !wait) {
         ROS_INFO("Calculate the speed in y");
         double vy = f*pose_diff[1];
         double ay = 0.5*f*(vy-old_speed[1]);
@@ -171,7 +180,7 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
             vy = old_speed[1] + ay/f;
         } */
         speed = {0,vy,0};
-    } else if ((std::abs(pose_diff[0]) > 0.08)) {
+    } else if ((std::abs(pose_diff[0]) > 0.08) && !wait) {
         ROS_INFO("Calculate the speed in x");
         double vx = f*pose_diff[0];
         double ax = 0.5*f*(vx-old_speed[0]);
@@ -192,9 +201,6 @@ std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<do
         } */
         speed = {vx,0,0};
     } else {
-        ROS_INFO("theta: %f < 0.09424778", std::abs(pose_diff[2]));
-        ROS_INFO("y: %f < 0.08", std::abs(pose_diff[1]));
-        ROS_INFO("x: %f < 0.08", std::abs(pose_diff[0]));
         speed = {0, 0, 0};
     }
     return speed;
@@ -286,7 +292,7 @@ std::vector<double> FindPoseDiff2(std::vector<double> robot_pose, std::vector<do
     return pose_diff;
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
-std::vector<double> FindPoseDiff(std::vector<double> robot_pose, std::vector<double> destination) {
+std::vector<double> FindPoseDiff(std::vector<double> robot_pose, const std::vector<double>& destination) {
     double t = destination[2]-robot_pose[2];
     double x = std::cos(robot_pose[2])*(destination[0]-robot_pose[0])-std::sin(robot_pose[2])*(destination[1]-robot_pose[1]); //change
     double y = std::sin(robot_pose[2])*(destination[0]-robot_pose[0])+std::cos(robot_pose[2])*(destination[1]-robot_pose[1]); //change
@@ -348,7 +354,6 @@ std::vector<Segment> FindObjects(std::vector<Segment>& segments, const std::vect
         Segment empty_segment;
         empty_segment.p1 = {0,0};
         empty_segment.p2 = {0,0};
-        empty_segment.sigma = 0;
         empty_segment.dv = {0,0};
         certain_segments.push_back(empty_segment);
     }
@@ -384,7 +389,6 @@ Segment FindCart(std::vector<Segment>& segments, Line area, Line facing) { /* J 
         Segment empty_segment;
         empty_segment.p1 = {0,0};
         empty_segment.p2 = {0,0};
-        empty_segment.sigma = 0;
         empty_segment.dv = {0,0};
         cart_segment = empty_segment;
     }
@@ -419,13 +423,9 @@ std::vector<double> CalculateError(std::vector<Distance>& distances, std::vector
 /*---------------------------------------------------------------------------------------------------------------------------*/
 std::vector<double> FindDesiredPose(Segment cart_segment, double range_x, double range_y) { /* L */
     // range x is with normal vector and range y is with direction vector.
-    ROS_INFO("Calculating pose");
     double x = cart_segment.p2[0] - range_x*cart_segment.dv[1] + range_y*cart_segment.dv[0];
-    ROS_INFO("Calculated x-position: %f", x);
     double y = cart_segment.p2[1] + range_x*cart_segment.dv[0] + range_y*cart_segment.dv[1];
-    ROS_INFO("Calculated y-position: %f", y);
     double alpha = RotationDifference(cart_segment.dv);
-    ROS_INFO("Calculated theta-position: %f", alpha);
     std::vector<double> pose = {x, y, alpha};
     return pose;
 }

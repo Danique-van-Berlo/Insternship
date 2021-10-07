@@ -8,36 +8,36 @@
 
 std::vector<Segment> segments;
 std::vector<std::vector<double>> PointCloud;
+std::vector<int> CloudIndex;
 std::vector<double> robot_pose;
+std::vector<double> init_robot_pose;
 
 void odomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
     robot_pose.clear();
-    robot_pose.push_back(msg->pose.pose.position.y);
-    robot_pose.push_back(-msg->pose.pose.position.x);
-    robot_pose.push_back(msg->pose.pose.orientation.z-0.707108);
-    ROS_INFO("Robot pose: %f %f %f", msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.orientation.z-0.707108);
+    robot_pose.push_back(msg->pose.pose.position.y-init_robot_pose[0]);
+    robot_pose.push_back(-msg->pose.pose.position.x-init_robot_pose[1]);
+    robot_pose.push_back((msg->pose.pose.orientation.z)*M_PI-init_robot_pose[2]);
+    ROS_INFO("Robot pose: %f %f %f", msg->pose.pose.position.x-init_robot_pose[0], msg->pose.pose.position.y-init_robot_pose[1], (msg->pose.pose.orientation.z)*M_PI-init_robot_pose[2]);
 }
 
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg) {
     //--------------------------------------Make the point cloud--------------------------------------------------------
     ROS_INFO("%s", "PointCloud");
     PointCloud.clear();
-    int k = 0;
     for (int i = 0; i < msg->ranges.size(); i++) {
         if (msg->ranges[i] < float(5)) {
-            k += 1;
             double alpha = msg->angle_min + (msg->angle_increment * float(i));
             std::vector<double> point = {msg->ranges[i] * std::cos(alpha) + 0.38, -msg->ranges[i] * std::sin(alpha)};
             PointCloud.push_back(point);
-            //ROS_INFO("point %i: (%f, %f) with range %f and angle %f", k, point[0], point[1], msg->ranges[i], alpha);
+            CloudIndex.push_back(i);
         }
     }
     //-------------------Turn point cloud into segments-----------------------------------------------------------------
     ROS_INFO("%s", "Segments");
     segments.clear();
-    MakingLineSegments(segments, PointCloud, 0, 0, 0);
+    MakingLineSegments(segments, PointCloud, CloudIndex, 0, 0, 0);
     ROS_INFO("Resetting segments");
-    ResetSegmentFrame(segments, robot_pose);
+    //ResetSegmentFrame(segments, robot_pose);
     ROS_INFO("done");
 }
 
@@ -51,6 +51,7 @@ int main(int argc, char **argv)
     ros::Publisher marker_pub = nh.advertise<visualization_msgs::Marker>( "segments_marker", 0 );
     ros::Subscriber sub_odom = nh.subscribe<nav_msgs::Odometry>("/ropod/odom", 1, odomCallback);
     ros::Subscriber sub_laser = nh.subscribe<sensor_msgs::LaserScan>("/ropod/laser/scan", 1, laserCallback);
+
 
 
     std::vector<double> speed = {0,0,0};
@@ -73,30 +74,14 @@ int main(int argc, char **argv)
     ros::Rate loop_rate(F);
 
     while(nh.ok()){
+        init_robot_pose = {0, 0, 0};
         ros::spinOnce();
-        //----------------------Visualize segments------------------------------------------------
-        /*visualization_msgs::Marker line_list;
-        line_list.header.frame_id = "/my_frame";
-        line_list.header.stamp = ros::Time::now();
-        line_list.ns = "points_and_lines";
-        line_list.pose.orientation.w = 1.0;
-        line_list.id = 2;
-        line_list.type = visualization_msgs::Marker::LINE_LIST;
-        geometry_msgs::Point point1, point2;
-        for (auto & segment : segments){
-            point1.x = segment.p1[0];
-            point1.y = segment.p1[1];
-            point1.z = point2.z = 0;
-            point2.x = segment.p2[0];
-            point2.y = segment.p2[1];
-            line_list.points.push_back(point1);
-            line_list.points.push_back(point2);
-        }
-        marker_pub.publish(line_list);*/
+        init_robot_pose = robot_pose;
+        ros::spinOnce();
         if (!segments.empty() && !robot_pose.empty()) {
             //---------------------Search for the entrance------------------------------------------------------------------
             ROS_INFO("%s", "Entrance");
-            std::vector<double> entrance = FindingEntrance(segments, {0, 0, 0});
+            std::vector<double> entrance = FindingEntrance(segments, robot_pose);
             ROS_INFO("The entrance is: (%f,%f,%f)", entrance[0], entrance[1], entrance[2]);
             //--------------------------Transform coordinates---------------------------------------------------------------
             area.p1 = TransformPositionB(area.p1, entrance);
@@ -108,11 +93,34 @@ int main(int argc, char **argv)
             FindAreaPose(facing, destination);
             ROS_INFO("The destination is: (%f,%f,%f)", destination[0], destination[1], destination[2]);
             //---------------------------Drive past entrance----------------------------------------------------------------
-            std::vector<double> entrance_goal = TransformPositionB({2,0,0}, entrance);
+            static const std::vector<double> entrance_goal = TransformPose({2,0,0}, entrance);
             ROS_INFO("Past entrance goal is: %f %f %f", entrance_goal[0], entrance_goal[1], entrance_goal[2]);
+            int i = 0;
             while (ros::ok())
             {
                 ros::spinOnce();
+                visualization_msgs::Marker line_list;
+                line_list.header.frame_id = "ropod/base_link";
+                line_list.header.stamp = ros::Time::now();
+                line_list.ns = "points_and_lines";
+                line_list.pose.orientation.w = 1.0;
+                line_list.id = 2;
+                line_list.color.a = 1.0;
+                line_list.color.b = 1.0;
+                line_list.type = visualization_msgs::Marker::LINE_LIST;
+                line_list.scale.x = 0.1;
+                geometry_msgs::Point point1, point2;
+                for (auto & segment : segments){
+                    point1.x = segment.p1[0];
+                    point1.y = -segment.p1[1];
+                    point1.z = point2.z = 0;
+                    point2.x = segment.p2[0];
+                    point2.y = -segment.p2[1];
+                    line_list.points.push_back(point1);
+                    line_list.points.push_back(point2);
+                }
+                i += 1;
+                ROS_INFO("loop %d", i);
                 std::vector<double> pose_diff = FindPoseDiff(robot_pose, entrance_goal);
                 ROS_INFO("Drive to entrance: Difference is: x=%f, y=%f and theta=%f", pose_diff[0], pose_diff[1], pose_diff[2]);
                 if (std::abs(pose_diff[0]) < 0.08 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.03*M_PI) {
@@ -120,7 +128,7 @@ int main(int argc, char **argv)
                     cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                     break;
                 }
-                speed = CalculateSpeed(pose_diff, speed, F, robot_width, PointCloud);
+                speed = CalculateSpeed(pose_diff, speed, F, robot_width, PointCloud, area);
                 SetTwistMessage(twist_msg, speed);
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
 
@@ -130,6 +138,28 @@ int main(int argc, char **argv)
             while (ros::ok())
             {
                 ros::spinOnce();
+                //----------------------Visualize segments------------------------------------------------
+                visualization_msgs::Marker line_list;
+                line_list.header.frame_id = "ropod/base_link";
+                line_list.header.stamp = ros::Time::now();
+                line_list.ns = "points_and_lines";
+                line_list.pose.orientation.w = 1.0;
+                line_list.id = 2;
+                line_list.color.a = 1.0;
+                line_list.color.b = 1.0;
+                line_list.type = visualization_msgs::Marker::LINE_LIST;
+                line_list.scale.x = 0.1;
+                geometry_msgs::Point point1, point2;
+                for (auto & segment : segments){
+                    point1.x = segment.p1[0];
+                    point1.y = -segment.p1[1];
+                    point1.z = point2.z = 0;
+                    point2.x = segment.p2[0];
+                    point2.y = -segment.p2[1];
+                    line_list.points.push_back(point1);
+                    line_list.points.push_back(point2);
+                }
+                marker_pub.publish(line_list);
                 std::vector<double> pose_diff = FindPoseDiff(robot_pose, destination);
                 ROS_INFO("Drive to cart area- Difference is: x=%f, y=%f and theta=%f", pose_diff[0], pose_diff[1], pose_diff[2]);
                 if (std::abs(pose_diff[0]) < 0.08 && std::abs(pose_diff[1]) < 0.08 && std::abs(pose_diff[2]) < 0.03*M_PI) {
@@ -137,7 +167,7 @@ int main(int argc, char **argv)
                     cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                     break;
                 }
-                speed = CalculateSpeed(pose_diff, speed, F, robot_width, PointCloud);
+                speed = CalculateSpeed(pose_diff, speed, F, robot_width, PointCloud, area);
                 //ROS_INFO("Given speed: x: %f, y: %f, theta: %f", speed[0], speed[1], speed[2]);
                 SetTwistMessage(twist_msg, speed);
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
@@ -173,7 +203,7 @@ int main(int argc, char **argv)
                     cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                     break;
                 }
-                speed = CalculateSpeed(pose_diff, speed, F, robot_width, PointCloud);
+                speed = CalculateSpeed(pose_diff, speed, F, robot_width, PointCloud, area);
                 ROS_INFO("Given speed: x: %f, y: %f, theta: %f", speed[0], speed[1], speed[2]);
                 SetTwistMessage(twist_msg, speed);
                 cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
