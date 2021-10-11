@@ -19,7 +19,7 @@ std::vector<double> CalculateError(std::vector<Distance>& distances, std::vector
 
 //Driving
 bool Wait(std::vector<std::vector<double>> pointcloud, double b, Line area);
-std::vector<double> CalculateSpeed2(std::vector<double> pose_diff, std::vector<double> goal, std::vector<double> old_speed, double f, double b, std::vector<std::vector<double>>& pointcloud, Line area);
+std::vector<double> CalculateSpeed2(std::vector<double> old_speed, double f, double b, std::vector<std::vector<double>>& pointcloud, Line area, double& i, double n, double m, double k, bool& driving);
 std::vector<double> CalculateSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double F, double b, std::vector<std::vector<double>>& pointcloud, Line area);
 std::vector<double> CalculatePositionSpeed(std::vector<double> pose_diff, std::vector<double> old_speed, double F);
 void SetTwistMessage(geometry_msgs::Twist& twist_msg, std::vector<double> speed);
@@ -32,5 +32,7 @@ std::vector<double> FindingEntrance(std::vector<Segment>& segments, const std::v
 void FindAreaPose(Line& facing, std::vector<double>& destination);
 
 void CalculateNewRobotPose (std::vector<double>& pose, std::vector<double>& vel, double F);
+
+std::vector<double> CalcIndices(std::vector<double> pose_diff, double amax, double awmax, double F);
 
 #endif //DANIQUE_FUNCTIONS_H

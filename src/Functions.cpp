@@ -124,34 +124,39 @@ bool Wait(std::vector<std::vector<double>> pointcloud, double b, Line area) { /*
     return wait;
 }
 /*------------------------------------------------------------------------------------------------------------------------*/
-std::vector<double> CalculateSpeed2(std::vector<double> pose_diff, std::vector<double> goal, std::vector<double> old_speed, double f, double b, std::vector<std::vector<double>>& pointcloud, Line area) { /* F */
-    double vmax = 3.5;
-    double wmax = (3*M_PI)/32;
-    // Gebruik niet goal maar init pose diff ofzo?
+std::vector<double> CalculateSpeed2(std::vector<double> old_speed, double f, double b, std::vector<std::vector<double>>& pointcloud, Line area, double& i, double n, double m, double k, bool& driving) { /* F */
     double amax = 1.05;
     double awmax = (3*M_PI)/68;
     bool wait = Wait(pointcloud, b, std::move(area));
     std::vector<double> speed;
-    if ((std::abs(pose_diff[2]) > 0.03*M_PI) && !wait) { //add something for judging if it should do x,y or theta.
-        ROS_INFO("Calculate the speed in theta");
-        if (old_speed[2] < std::sqrt(goal[2]*awmax)) {
+    if (!wait) {
+        if ( i < 1.4*n ) {
+            ROS_INFO("acc x");
+            i += 1;
+            speed = {old_speed[0]+amax/f, 0, 0};
+        } else if ( i < 2.8*n ) {
+            ROS_INFO("dec x");
+            i += 1;
+            speed = {old_speed[0]-amax/f, 0, 0};
+        } else  if ( i < (2.8*n+1.4*m) ) {
+            ROS_INFO("acc y");
+            i += 1;
+            speed = {0, old_speed[1]+amax/f, 0};
+        } else if ( i < (2.8*n+2.8*m) ) {
+            ROS_INFO("dec y");
+            i += 1;
+            speed = {0, old_speed[1]-amax/f, 0};
+        } else if ( i < (2.8*n+2.8*m+k) ) {
+            ROS_INFO("acc theta");
+            i += 1;
             speed = {0, 0, old_speed[2]+awmax/f};
-        } else {
+        } else if ( i < (2.8*n+2.8*m+2*k) ){
+            ROS_INFO("dec theta");
+            i += 1;
             speed = {0, 0, old_speed[2]-awmax/f};
-        }
-    } else  if ((std::abs(pose_diff[1]) > 0.08) && !wait) {
-        ROS_INFO("Calculate the speed in y");
-        if (old_speed[1] < std::sqrt(goal[1]*amax)) {
-            speed = {0, old_speed[1]+awmax/f, 0};
         } else {
-            speed = {0, old_speed[1]-awmax/f, 0};
-        }
-    } else  if ((std::abs(pose_diff[0]) > 0.08) && !wait) {
-        ROS_INFO("Calculate the speed in x");
-        if (old_speed[0] < std::sqrt(goal[0]*awmax)) {
-            speed = {old_speed[0]+awmax/f, 0, 0};
-        } else {
-            speed = {old_speed[0]-awmax/f, 0, 0};
+            driving = false;
+            speed = {0, 0, 0};
         }
     } else {
         speed = {0, 0, 0};
@@ -286,8 +291,8 @@ std::vector<double> CalculatePositionSpeed(std::vector<double> pose_diff, std::v
 /*------------------------------------------------------------------------------------------------------------------------*/
 std::vector<double> FindPoseDiff2(std::vector<double> robot_pose, std::vector<double> destination) {
     double t = destination[2]-robot_pose[2];
-    double x = -std::cos(robot_pose[2])*(destination[0]-robot_pose[0])+std::sin(robot_pose[2])*(destination[1]-robot_pose[1]);
-    double y = -std::sin(robot_pose[2])*(destination[0]-robot_pose[0])-std::cos(robot_pose[2])*(destination[1]-robot_pose[1]);
+    double x = std::cos(robot_pose[2])*(destination[0]-robot_pose[0])+std::sin(robot_pose[2])*(destination[1]-robot_pose[1]);
+    double y = -std::sin(robot_pose[2])*(destination[0]-robot_pose[0])+std::cos(robot_pose[2])*(destination[1]-robot_pose[1]);
     std::vector<double> pose_diff = {x, y, t};
     return pose_diff;
 }
@@ -465,4 +470,20 @@ void CalculateNewRobotPose (std::vector<double>& pose, std::vector<double>& vel,
     double x = std::cos(pose[2])*vel[0]/F - std::sin(pose[2])*vel[1]/F + pose[0];
     double y = std::cos(pose[2])*vel[1]/F + std::sin(pose[2])*vel[0]/F + pose[1];
     pose = {x, y, t};
+}
+
+std::vector<double> CalcIndices(std::vector<double> pose_diff, double amax, double awmax, double F) {
+    double vmax, tmax, n, m, k;
+    std::vector<double> indices;
+    vmax = std::sqrt(std::abs(pose_diff[0])*amax);
+    tmax = vmax/amax;
+    n = tmax*F;
+    vmax = std::sqrt(std::abs(pose_diff[1])*amax);
+    tmax = vmax/amax;
+    m = tmax*F;
+    vmax = std::sqrt(std::abs(pose_diff[2])*awmax);
+    tmax = vmax/awmax;
+    k = tmax*F;
+    indices = {n, m, k};
+    return indices;
 }
