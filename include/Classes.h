@@ -8,17 +8,18 @@ public:
     std::vector<double> dv;
 };
 
-class Line {
-public:
-    std::vector<double> p1;
-    std::vector<double> p2;
-};
-
-class Distance {
+class Segment2 {
 public:
     std::vector<double> p1;
     std::vector<double> p2;
     std::vector<double> dv;
+    int index;
+};
+
+class Line {
+public:
+    std::vector<double> p1;
+    std::vector<double> p2;
 };
 
 
