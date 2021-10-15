@@ -234,8 +234,10 @@ int main(int argc, char **argv)
                         std::vector<double> error = CalculateError(object_distance, localization2_segments, robot_pose);
                         ROS_INFO("Drive to destination- Difference is: x=%f, y=%f and theta=%f", error[0], error[1], error[2]);
                         if (std::abs(error[0]) < 0.08 && std::abs(error[1]) < 0.02 && std::abs(error[2]) < 0.05 * M_PI) {
+                            ROS_INFO("At position");
                             SetTwistMessage(twist_msg, {0, 0, 0});
                             cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
+                            ROS_INFO("Go to stop");
                             state = Stop;
                             break;
                         }

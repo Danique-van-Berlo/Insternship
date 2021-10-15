@@ -14,6 +14,7 @@ public:
     std::vector<double> p2;
     std::vector<double> dv;
     int index;
+    int cat; //category: whole segment, first part segment, secondrt segment.
 };
 
 class Line {
