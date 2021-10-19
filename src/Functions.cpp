@@ -270,7 +270,8 @@ Segment FindCart(std::vector<Segment>& segments, Line area, Line facing) { /* J 
             double dxf = facing.p2[0]-facing.p1[0];
             double dyf = facing.p2[1]-facing.p1[1];
             double alpha = std::acos((dxs*dxf+dys*dyf)/(std::sqrt(dxs*dxs+dys*dys)*std::sqrt(dxf*dxf+dyf*dyf)));
-            if ( std::abs(alpha) < M_PI_4 ) {
+            double length = std::sqrt(dxs*dxs+dys*dys);
+            if ( std::abs(alpha) < M_PI_4 && std::abs(length-0.7) < 0.2) {
                 cart_segment = segment;
             }
         }
@@ -299,23 +300,33 @@ std::vector<double> FindDesiredPose(Segment cart_segment, double range_x, double
 }
 std::vector<Segment> FindObjects(std::vector<Segment>& segments, const std::vector<double>& desired_pose, const Segment& cart) { /* I */ // Kijken of hier iets van evenwijdig aan cart toe te voegen is
     std::vector<Segment> certain_segments;
-    double R = 3.5;
+    double Mx = 0.5*(cart.p1[0]+cart.p2[0]);
+    double My = 0.5*(cart.p1[1]+cart.p2[1]);
+    double dx = cart.dv[0];
+    double dy = cart.dv[1];
+    double d1 = dy*Mx - dx*My;
+    double d2 = dy*(Mx-4*dy) - dx*(My-4*dx);
+    double d3 = dx*(Mx-4*dx) - dy*(My-4*dy);
+    double d4 = dx*(Mx+4*dx) - dy*(My+4*dy);
     for (auto & segment : segments) {
-        /* if ((segment.p1[0]-desired_pose[0])*(segment.p1[0]-desired_pose[0])+(segment.p1[1]-desired_pose[1])*(segment.p1[1]-desired_pose[1])<R*R &&
-            (segment.p2[0]-desired_pose[0])*(segment.p2[0]-desired_pose[0])+(segment.p2[1]-desired_pose[1])*(segment.p2[1]-desired_pose[1])<R*R &&
-            std::abs(-std::sin(desired_pose[2])*segment.p1[0]+std::cos(desired_pose[2])*segment.p1[1]) > -std::sin(desired_pose[2])*segment.p1[0]-std::cos(desired_pose[2])*segment.p1[1] &&
-            std::abs(-std::sin(desired_pose[2])*segment.p2[0]+std::cos(desired_pose[2])*segment.p2[1]) > -std::sin(desired_pose[2])*segment.p2[0]-std::cos(desired_pose[2])*segment.p2[1]){ */
-            certain_segments.push_back(segment);
-            /* ROS_INFO("The complete segments will be visible while positioning");
+        ROS_INFO("point 1: %f < %f < %f & %f < %f < %f", d2, dy*cart.dv[1]*segment.p1[0] + dx*segment.p1[1], d1, d4, dx*cart.dv[1]*segment.p1[0] - dy*segment.p1[1], d3);
+        ROS_INFO("point 2: %f < %f < %f & %f < %f < %f", d2, dy*cart.dv[1]*segment.p2[0] + dx*segment.p2[1], d1, d4, dx*cart.dv[1]*segment.p2[0] - dy*segment.p2[1], d3);
+        if (dy*cart.dv[1]*segment.p1[0] + dx*segment.p1[1] < d1 && dy*cart.dv[1]*segment.p1[0] + dx*segment.p1[1] > d2 &&
+            dx*cart.dv[1]*segment.p1[0] - dy*segment.p1[1] < d3 && dx*cart.dv[1]*segment.p1[0] - dy*segment.p1[1] > d4 &&
+            dy*cart.dv[1]*segment.p2[0] + dx*segment.p2[1] < d1 && dy*cart.dv[1]*segment.p2[0] + dx*segment.p2[1] > d2 &&
+            dx*cart.dv[1]*segment.p2[0] - dy*segment.p2[1] < d3 && dx*cart.dv[1]*segment.p2[0] - dy*segment.p2[1] > d4) {
+            ROS_INFO("The complete segments will be visible while positioning");
             double sdvl = std::sqrt(segment.dv[0]*segment.dv[0]+segment.dv[1]*segment.dv[1]);
             double cdvl = std::sqrt(cart.dv[0]*cart.dv[0]+cart.dv[1]*cart.dv[1]);
             double alpha = std::acos((segment.dv[0]*cart.dv[0]+segment.dv[1]*cart.dv[1])/(sdvl*cdvl));
             ROS_INFO("The angle between two segments is calculated");
-            if (std::abs(alpha) - M_PI_2 < 0.25*M_PI) { //huh
+            ROS_INFO("%f < %f", std::abs(alpha) - M_PI_2, M_PI_4);
+            if (std::abs(std::abs(alpha) - M_PI_2) < M_PI_4) {
                 ROS_INFO("Segment found that is about perpendicular to the cart segment");
                 certain_segments.push_back(segment);
             }
-        } */
+        }
+
     }
     return certain_segments;
 }
@@ -367,6 +378,60 @@ std::vector<Segment> FindDistance(const std::vector<double>& desired_pose, const
         distances.push_back(distance);
     }
     return distances;
+}
+std::vector<double> CalculateError(std::vector<Segment>& distances, std::vector<Segment2>& localization_segments, std::vector<double>& robot_pose) {
+    std::vector<double> error = {0,0,0};
+    double kx=0, ky=0, kt=0;
+    Segment distance;
+    for (int i = 0; i < localization_segments.size(); i++) {
+        double p1x, p1y, p2x, p2y, alpha;
+        int j = localization_segments[i].index;
+        distance.p1 = TransformPosition(localization_segments[i].p1, robot_pose);
+        distance.p2 = TransformPosition(localization_segments[i].p2, robot_pose);
+        double xd = (1/(std::sqrt((distance.p2[0]-distance.p1[0])*(distance.p2[0]-distance.p1[0])+(distance.p2[1]-distance.p1[1])*(distance.p2[1]-distance.p1[1]))))*(distance.p2[0]-distance.p1[0]);
+        double yd = (1/(std::sqrt((distance.p2[0]-distance.p1[0])*(distance.p2[0]-distance.p1[0])+(distance.p2[1]-distance.p1[1])*(distance.p2[1]-distance.p1[1]))))*(distance.p2[1]-distance.p1[1]);
+        distance.dv = {xd, yd};
+        alpha = std::acos(distances[j].dv[0])-std::acos(distance.dv[0]);
+        ROS_INFO("Angular difference %d: %f", i, alpha);
+        if (localization_segments[i].cat == 0) {
+            kx += 2;
+            ky += 2;
+            kt += 1;
+            p1x = distance.p1[0];
+            p1y = distance.p1[1];
+            p2x = distance.p2[0];
+            p2y = distance.p2[1];
+            ROS_INFO("Translational difference x %d: %f and %f", i, std::cos(alpha)*p1x-std::sin(alpha)*p1y-distances[j].p1[0], std::cos(alpha)*p2x-std::sin(alpha)*p2y-distances[j].p2[0]);
+            ROS_INFO("Translational difference y %d: %f and %f", i, std::sin(alpha)*p1x+std::cos(alpha)*p1y-distances[j].p1[1], std::sin(alpha)*p2x+std::cos(alpha)*p2y-distances[i].p2[1]);
+        } else if (localization_segments[i].cat == 1) {
+            kx += 1;
+            ky += 1;
+            kt += 1;
+            p1x = distance.p1[0];
+            p1y = distance.p1[1];
+            p2x = 0;
+            p2y = 0;
+            ROS_INFO("Translational difference x %d: %f", i, std::cos(alpha)*p1x-std::sin(alpha)*p1y-distances[j].p1[0]);
+            ROS_INFO("Translational difference y %d: %f", i, std::sin(alpha)*p1x+std::cos(alpha)*p1y-distances[j].p1[1]);
+        } else {
+            kx += 1;
+            ky += 1;
+            kt += 1;
+            p1x = 0;
+            p1y = 0;
+            p2x = distance.p2[0];
+            p2y = distance.p2[1];
+            ROS_INFO("Translational difference x %d: %f", i, std::cos(alpha)*p2x-std::sin(alpha)*p2y-distances[j].p2[0]);
+            ROS_INFO("Translational difference y %d: %f", i, std::sin(alpha)*p2x+std::cos(alpha)*p2y-distances[i].p2[1]);
+        }
+        error[2] += alpha;
+        error[0] += (std::cos(alpha)*p1x-std::sin(alpha)*p1y-distances[j].p1[0]+std::cos(alpha)*p2x-std::sin(alpha)*p2y-distances[j].p2[0]);
+        error[1] += (std::sin(alpha)*p1x+std::cos(alpha)*p1y-distances[j].p1[1]+std::sin(alpha)*p2x+std::cos(alpha)*p2y-distances[j].p2[1]);
+    }
+    error[2] = error[2]/kt;
+    error[0] = error[0]/kx;
+    error[1] = error[1]/ky;
+    return error;
 }
 std::vector<Segment2> CompareSegments(std::vector<Segment>& old_segments, std::vector<Segment>& new_segments) { /* H */
     std::vector<Segment2> match;
@@ -453,66 +518,33 @@ std::vector<Segment2> CompareSegments(std::vector<Segment>& old_segments, std::v
                 segment.cat = 2;
                 match.push_back(segment);
                 new_segments[j].p1 = {1000,1000};
+            } else if (rb2 < 0.1 && std::abs(xdi-xdj) < 0.01 && std::abs(ydi-ydj) < 0.1) {
+                ROS_INFO("begin point close and sort of similar direction vector (y)");
+                ROS_INFO("segment 1: (%f, %f) to (%f, %f) with dv (%f, %f)", old_segments[i].p1[0], old_segments[i].p1[1],  old_segments[i].p2[0], old_segments[i].p2[1], old_segments[i].dv[0], old_segments[i].dv[1]);
+                ROS_INFO("segment 2: (%f, %f) to (%f, %f) with dv (%f, %f)", new_segments[j].p1[0], new_segments[j].p1[1],  new_segments[j].p2[0], new_segments[j].p2[1], new_segments[j].dv[0], new_segments[j].dv[1]);
+                segment.p1 = new_segments[j].p1;
+                segment.p2 = new_segments[j].p2;
+                segment.dv = new_segments[j].dv;
+                segment.index = i;
+                segment.cat = 1;
+                match.push_back(segment);
+                new_segments[j].p1 = {1000,1000};
+            } else if (re2 < 0.1 && std::abs(xdi-xdj) < 0.1 && std::abs(ydi-ydj) < 0.01) {
+                ROS_INFO("end point close and sort of similar direction vector (x)");
+                ROS_INFO("segment 1: (%f, %f) to (%f, %f) with dv (%f, %f)", old_segments[i].p1[0], old_segments[i].p1[1],  old_segments[i].p2[0], old_segments[i].p2[1], old_segments[i].dv[0], old_segments[i].dv[1]);
+                ROS_INFO("segment 2: (%f, %f) to (%f, %f) with dv (%f, %f)", new_segments[j].p1[0], new_segments[j].p1[1],  new_segments[j].p2[0], new_segments[j].p2[1], new_segments[j].dv[0], new_segments[j].dv[1]);
+                segment.p1 = new_segments[j].p1;
+                segment.p2 = new_segments[j].p2;
+                segment.dv = new_segments[j].dv;
+                segment.index = i;
+                segment.cat = 2;
+                match.push_back(segment);
+                new_segments[j].p1 = {1000,1000};
             }
         }
     }
     ROS_INFO("Done comparing");
     return match;
-}
-std::vector<double> CalculateError(std::vector<Segment>& distances, std::vector<Segment2>& localization_segments, std::vector<double>& robot_pose) {
-    std::vector<double> error = {0,0,0};
-    double kx=0, ky=0, kt=0;
-    for (int i = 0; i < localization_segments.size(); i++) {
-        double p1x, p1y, p2x, p2y, alpha;
-        int j = localization_segments[i].index;
-        if (localization_segments[i].cat == 0) {
-            kx += 2;
-            ky += 2;
-            kt += 1;
-            p1x = std::cos(robot_pose[2])*(localization_segments[i].p1[0]-robot_pose[0])+std::sin(robot_pose[2])*(localization_segments[i].p1[1]-robot_pose[1]);
-            p1y = -std::sin(robot_pose[2])*(localization_segments[i].p1[0]-robot_pose[0])+std::cos(robot_pose[2])*(localization_segments[i].p1[1]-robot_pose[1]);
-            p2x = std::cos(robot_pose[2])*(localization_segments[i].p2[0]-robot_pose[0])+std::sin(robot_pose[2])*(localization_segments[i].p2[1]-robot_pose[1]);
-            p2y = -std::sin(robot_pose[2])*(localization_segments[i].p2[0]-robot_pose[0])+std::cos(robot_pose[2])*(localization_segments[i].p2[1]-robot_pose[1]);
-            double dvx = 1/std::sqrt((p2x-p1x)*(p2x-p1x)+(p2y-p1y)*(p2y-p1y))*(p2x-p1x);
-            alpha = std::acos(distances[j].dv[0])-std::acos(dvx);
-            ROS_INFO("Angular difference %d: %f", i, alpha);
-            ROS_INFO("Translational difference x %d: %f and %f", i, std::cos(alpha)*p1x-std::sin(alpha)*p1y-distances[j].p1[0], std::cos(alpha)*p2x-std::sin(alpha)*p2y-distances[j].p2[0]);
-            ROS_INFO("Translational difference y %d: %f and %f", i, std::sin(alpha)*p1x+std::cos(alpha)*p1y-distances[j].p1[1], std::sin(alpha)*p2x+std::cos(alpha)*p2y-distances[i].p2[1]);
-        } else if (localization_segments[i].cat == 1) {
-            kx += 1;
-            ky += 1;
-            kt += 1;
-            p1x = std::cos(robot_pose[2])*(localization_segments[i].p1[0]-robot_pose[0])+std::sin(robot_pose[2])*(localization_segments[i].p1[1]-robot_pose[1]);
-            p1y = -std::sin(robot_pose[2])*(localization_segments[i].p1[0]-robot_pose[0])+std::cos(robot_pose[2])*(localization_segments[i].p1[1]-robot_pose[1]);
-            p2x = 0;
-            p2y = 0;
-            double dvx = 1/std::sqrt((p2x-p1x)*(p2x-p1x)+(p2y-p1y)*(p2y-p1y))*(p2x-p1x);
-            alpha = std::acos(distances[j].dv[0])-std::acos(dvx);
-            ROS_INFO("Angular difference %d: %f", i, alpha);
-            ROS_INFO("Translational difference x %d: %f", i, std::cos(alpha)*p1x-std::sin(alpha)*p1y-distances[j].p1[0]);
-            ROS_INFO("Translational difference y %d: %f", i, std::sin(alpha)*p1x+std::cos(alpha)*p1y-distances[j].p1[1]);
-        } else {
-            kx += 1;
-            ky += 1;
-            kt += 1;
-            p1x = 0;
-            p1y = 0;
-            p2x = std::cos(robot_pose[2])*(localization_segments[i].p2[0]-robot_pose[0])+std::sin(robot_pose[2])*(localization_segments[i].p2[1]-robot_pose[1]);
-            p2y = -std::sin(robot_pose[2])*(localization_segments[i].p2[0]-robot_pose[0])+std::cos(robot_pose[2])*(localization_segments[i].p2[1]-robot_pose[1]);
-            double dvx = 1/std::sqrt((p2x-p1x)*(p2x-p1x)+(p2y-p1y)*(p2y-p1y))*(p2x-p1x);
-            alpha = std::acos(distances[j].dv[0])-std::acos(dvx);
-            ROS_INFO("Angular difference %d: %f", i, alpha);
-            ROS_INFO("Translational difference x %d: %f", i, std::cos(alpha)*p2x-std::sin(alpha)*p2y-distances[j].p2[0]);
-            ROS_INFO("Translational difference y %d: %f", i, std::sin(alpha)*p2x+std::cos(alpha)*p2y-distances[i].p2[1]);
-        }
-        error[2] += alpha;
-        error[0] += (std::cos(alpha)*p1x-std::sin(alpha)*p1y-distances[j].p1[0]+std::cos(alpha)*p2x-std::sin(alpha)*p2y-distances[j].p2[0]);
-        error[1] += (std::sin(alpha)*p1x+std::cos(alpha)*p1y-distances[j].p1[1]+std::sin(alpha)*p2x+std::cos(alpha)*p2y-distances[j].p2[1]);
-    }
-    error[2] = error[2]/kt;
-    error[0] = error[0]/kx;
-    error[1] = error[1]/ky;
-    return error;
 }
 std::vector<double> CalculateInitError(std::vector<Segment>& distances, std::vector<Segment>& localization_segments, std::vector<double>& robot_pose) {
     std::vector<double> error = {0,0,0};

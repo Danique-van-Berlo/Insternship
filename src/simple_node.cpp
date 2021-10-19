@@ -199,9 +199,9 @@ int main(int argc, char **argv)
                         break;
                     }
                     ROS_INFO("Cart is found at (%f,%f) and (%f,%f)", cart.p1[0], cart.p1[1], cart.p2[0], cart.p2[1]);
-                    int_pose = FindDesiredPose(cart, 0.5, robot_width + 0.6);
+                    int_pose = FindDesiredPose(cart, robot_width + 0.6, 0.5);
                     ROS_INFO("The intermediate pose is: (%f,%f,%f)", int_pose[0], int_pose[1], int_pose[2]);
-                    desired_pose = FindDesiredPose(cart, 0, robot_width + 0.6);
+                    desired_pose = FindDesiredPose(cart, robot_width + 0.6, 0);
                     ROS_INFO("The desired pose is: (%f,%f,%f)", desired_pose[0], desired_pose[1], desired_pose[2]);
                     localization_segments = FindObjects(segments, desired_pose, cart);
                     if (localization_segments.empty()) {
@@ -217,7 +217,7 @@ int main(int argc, char **argv)
                 //------------------------------Driving to goal: closed loop--------------------------------------------
                 case driveAccurate:
                     ROS_INFO("Drive to the final desired pose before docking.");
-                    init_error = CalculateInitError(object_distance, localization_segments, robot_pose);
+                    /*init_error = CalculateInitError(object_distance, localization_segments, robot_pose);*/
                     while (ros::ok()) {
                         ros::spinOnce();
                         ResetSegmentFrame(segments, robot_pose);
