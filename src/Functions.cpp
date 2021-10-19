@@ -392,41 +392,35 @@ std::vector<double> CalculateError(std::vector<Segment>& distances, std::vector<
         double yd = (1/(std::sqrt((distance.p2[0]-distance.p1[0])*(distance.p2[0]-distance.p1[0])+(distance.p2[1]-distance.p1[1])*(distance.p2[1]-distance.p1[1]))))*(distance.p2[1]-distance.p1[1]);
         distance.dv = {xd, yd};
         alpha = std::acos(distances[j].dv[0])-std::acos(distance.dv[0]);
+        error[2] += alpha;
         ROS_INFO("Angular difference %d: %f", i, alpha);
         if (localization_segments[i].cat == 0) {
             kx += 2;
             ky += 2;
             kt += 1;
-            p1x = distance.p1[0];
-            p1y = distance.p1[1];
-            p2x = distance.p2[0];
-            p2y = distance.p2[1];
-            ROS_INFO("Translational difference x %d: %f and %f", i, std::cos(alpha)*p1x-std::sin(alpha)*p1y-distances[j].p1[0], std::cos(alpha)*p2x-std::sin(alpha)*p2y-distances[j].p2[0]);
-            ROS_INFO("Translational difference y %d: %f and %f", i, std::sin(alpha)*p1x+std::cos(alpha)*p1y-distances[j].p1[1], std::sin(alpha)*p2x+std::cos(alpha)*p2y-distances[i].p2[1]);
+            error[0] += std::cos(alpha)*distance.p1[0]-std::sin(alpha)*distance.p1[1]-distances[j].p1[0];
+            error[1] += std::sin(alpha)*distance.p1[0]+std::cos(alpha)*distance.p1[1]-distances[j].p1[1];
+            error[0] += std::cos(alpha)*distance.p2[0]-std::sin(alpha)*distance.p2[1]-distances[j].p2[0];
+            error[1] += std::sin(alpha)*distance.p2[0]+std::cos(alpha)*distance.p2[1]-distances[j].p2[1];
+            ROS_INFO("Translational difference x %d: %f and %f", i, std::cos(alpha)*distance.p1[0]-std::sin(alpha)*distance.p1[1]-distances[j].p1[0], std::cos(alpha)*distance.p2[0]-std::sin(alpha)*distance.p2[1]-distances[j].p2[0]);
+            ROS_INFO("Translational difference y %d: %f and %f", i, std::sin(alpha)*distance.p1[0]+std::cos(alpha)*distance.p1[1]-distances[j].p1[1], std::sin(alpha)*distance.p2[0]+std::cos(alpha)*distance.p2[1]-distances[j].p2[1]);
         } else if (localization_segments[i].cat == 1) {
             kx += 1;
             ky += 1;
             kt += 1;
-            p1x = distance.p1[0];
-            p1y = distance.p1[1];
-            p2x = 0;
-            p2y = 0;
-            ROS_INFO("Translational difference x %d: %f", i, std::cos(alpha)*p1x-std::sin(alpha)*p1y-distances[j].p1[0]);
-            ROS_INFO("Translational difference y %d: %f", i, std::sin(alpha)*p1x+std::cos(alpha)*p1y-distances[j].p1[1]);
+            error[0] += std::cos(alpha)*distance.p1[0]-std::sin(alpha)*distance.p1[1]-distances[j].p1[0];
+            error[1] += std::sin(alpha)*distance.p1[0]+std::cos(alpha)*distance.p1[1]-distances[j].p1[1];
+            ROS_INFO("Translational difference x %d: %f", i, std::cos(alpha)*distance.p1[0]-std::sin(alpha)*distance.p1[1]-distances[j].p1[0]);
+            ROS_INFO("Translational difference y %d: %f", i, std::sin(alpha)*distance.p1[0]+std::cos(alpha)*distance.p1[1]-distances[j].p1[1]);
         } else {
             kx += 1;
             ky += 1;
             kt += 1;
-            p1x = 0;
-            p1y = 0;
-            p2x = distance.p2[0];
-            p2y = distance.p2[1];
-            ROS_INFO("Translational difference x %d: %f", i, std::cos(alpha)*p2x-std::sin(alpha)*p2y-distances[j].p2[0]);
-            ROS_INFO("Translational difference y %d: %f", i, std::sin(alpha)*p2x+std::cos(alpha)*p2y-distances[i].p2[1]);
+            error[0] += std::cos(alpha)*distance.p2[0]-std::sin(alpha)*distance.p2[1]-distances[j].p2[0];
+            error[1] += std::sin(alpha)*distance.p2[0]+std::cos(alpha)*distance.p2[1]-distances[j].p2[1];
+            ROS_INFO("Translational difference x %d: %f", i, std::cos(alpha)*distance.p2[0]-std::sin(alpha)*distance.p2[1]-distances[j].p2[0]);
+            ROS_INFO("Translational difference y %d: %f", i, std::sin(alpha)*distance.p2[0]+std::cos(alpha)*distance.p2[1]-distances[j].p2[1]);
         }
-        error[2] += alpha;
-        error[0] += (std::cos(alpha)*p1x-std::sin(alpha)*p1y-distances[j].p1[0]+std::cos(alpha)*p2x-std::sin(alpha)*p2y-distances[j].p2[0]);
-        error[1] += (std::sin(alpha)*p1x+std::cos(alpha)*p1y-distances[j].p1[1]+std::sin(alpha)*p2x+std::cos(alpha)*p2y-distances[j].p2[1]);
     }
     error[2] = error[2]/kt;
     error[0] = error[0]/kx;
