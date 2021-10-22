@@ -35,9 +35,8 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg) {
     //-------------------Turn point cloud into segments-----------------------------------------------------------------
     ROS_INFO("%s", "Segments");
     segments.clear();
-    MakingLineSegments(segments, PointCloud, CloudIndex, 0, 0, 0);
+    MakingLineSegments(segments, PointCloud, CloudIndex, 0, 1, 0);
     ROS_INFO("Resetting segments");
-    //ResetSegmentFrame(segments, robot_pose);
     ROS_INFO("done");
 }
 
@@ -49,6 +48,7 @@ int main(int argc, char **argv)
     ros::Publisher cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("/load/cmd_vel", 1);
     geometry_msgs::Twist twist_msg;
     ros::Publisher marker_pub = nh.advertise<visualization_msgs::Marker>( "segments_marker", 0 );
+    ros::Publisher marker1_pub = nh.advertise<visualization_msgs::Marker>( "segments_marker1", 0 );
     ros::Subscriber sub_odom = nh.subscribe<nav_msgs::Odometry>("/ropod/odom", 1, odomCallback);
     ros::Subscriber sub_laser = nh.subscribe<sensor_msgs::LaserScan>("/ropod/laser/scan", 1, laserCallback);
 
@@ -81,6 +81,7 @@ int main(int argc, char **argv)
     bool driving;
     std::vector<double> init_error;
     std::vector<Segment2> localization2_segments;
+    std::vector<Segment> robot_segments;
 
     typedef enum {
         searchEntrance = 1,
@@ -115,7 +116,7 @@ int main(int argc, char **argv)
                     area.p2 = TransformPosition(area.p2, entrance);
                     facing.p1 = TransformPosition(facing.p1, entrance);
                     facing.p2 = TransformPosition(facing.p2, entrance);
-                    FindAreaPose(facing, area_pose);
+                    FindAreaPose(facing, area_pose); //Change such that cart is not perpedicular
                     ROS_INFO("The destination is: (%f,%f,%f)", area_pose[0], area_pose[1], area_pose[2]);
                     break;
                 //------------------Stop--------------------------------------------------------------------------------
@@ -136,7 +137,7 @@ int main(int argc, char **argv)
                     while (ros::ok()) {
                         ROS_INFO("int %f", i);
                         if (!driving) {
-                            SetTwistMessage2(twist_msg, {0,0,0}, pose_diff);
+                            SetTwistMessageOL(twist_msg, {0,0,0}, pose_diff);
                             cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
                             if( n == 1 ) {
                                 ROS_INFO("New driving destination is set to be the area of the cart.");
@@ -155,7 +156,7 @@ int main(int argc, char **argv)
                         }
                         speed = VelocityOL(robot_vel, F, robot_width, PointCloud, area, i, indices[0], indices[1], indices[2], driving);
                         ROS_INFO("speed %f %f %f", speed[0], speed[1], speed[2]);
-                        SetTwistMessage2(twist_msg, speed, pose_diff);
+                        SetTwistMessageOL(twist_msg, speed, pose_diff);
                         cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
 
                         ros::spinOnce();
@@ -199,9 +200,9 @@ int main(int argc, char **argv)
                         break;
                     }
                     ROS_INFO("Cart is found at (%f,%f) and (%f,%f)", cart.p1[0], cart.p1[1], cart.p2[0], cart.p2[1]);
-                    int_pose = FindDesiredPose(cart, robot_width + 0.6, 0.5);
+                    int_pose = FindDesiredPose(cart, robot_width + 0.7, 0);
                     ROS_INFO("The intermediate pose is: (%f,%f,%f)", int_pose[0], int_pose[1], int_pose[2]);
-                    desired_pose = FindDesiredPose(cart, robot_width + 0.6, 0);
+                    desired_pose = FindDesiredPose(cart, robot_width + 0.43, 0);
                     ROS_INFO("The desired pose is: (%f,%f,%f)", desired_pose[0], desired_pose[1], desired_pose[2]);
                     localization_segments = FindObjects(segments, desired_pose, cart);
                     if (localization_segments.empty()) {
@@ -220,6 +221,7 @@ int main(int argc, char **argv)
                     /*init_error = CalculateInitError(object_distance, localization_segments, robot_pose);*/
                     while (ros::ok()) {
                         ros::spinOnce();
+                        robot_segments = segments;
                         ResetSegmentFrame(segments, robot_pose);
                         localization2_segments = CompareSegments(localization_segments, segments);
                         ROS_INFO("Past segment comparison");
@@ -231,9 +233,9 @@ int main(int argc, char **argv)
                             break;
                         }
                         ROS_INFO("Start error calculation");
-                        std::vector<double> error = CalculateError(object_distance, localization2_segments, robot_pose);
+                        std::vector<double> error = CalculateError(object_distance, localization2_segments, robot_segments, robot_pose);
                         ROS_INFO("Drive to destination- Difference is: x=%f, y=%f and theta=%f", error[0], error[1], error[2]);
-                        if (std::abs(error[0]) < 0.08 && std::abs(error[1]) < 0.02 && std::abs(error[2]) < 0.05 * M_PI) {
+                        if (std::abs(error[0]) < 0.08 && std::abs(error[1]) < 0.02 && std::abs(error[2]) < 0.03 * M_PI) {
                             ROS_INFO("At position");
                             SetTwistMessage(twist_msg, {0, 0, 0});
                             cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
@@ -241,11 +243,59 @@ int main(int argc, char **argv)
                             state = Stop;
                             break;
                         }
-                        speed = VelocityCL(error, robot_vel, F, error);
+                        speed = VelocityCL(robot_vel, F, error);
                         SetTwistMessage(twist_msg, speed);
                         cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));
 
+                        //----------------------Visualize all segments--------------------------------------------------
+                        visualization_msgs::Marker line_list;
+                        line_list.header.frame_id = "ropod/base_link";
+                        line_list.header.stamp = ros::Time::now();
+                        line_list.ns = "points_and_lines";
+                        line_list.pose.orientation.w = 1.0;
+                        line_list.id = 2;
+                        line_list.color.a = 1.0;
+                        line_list.color.b = 1.0;
+                        line_list.type = visualization_msgs::Marker::LINE_LIST;
+                        line_list.scale.x = 0.1;
+                        geometry_msgs::Point point1, point2;
+                        for (auto & segment : robot_segments){
+                            point1.x = segment.p1[0];
+                            point1.y = segment.p1[1];
+                            point1.z = point2.z = 0;
+                            point2.x = segment.p2[0];
+                            point2.y = segment.p2[1];
+                            line_list.points.push_back(point1);
+                            line_list.points.push_back(point2);
+                        }
+                        marker_pub.publish(line_list);
+
+                        //----------------------Visualize all segments--------------------------------------------------
+                        visualization_msgs::Marker line_lists;
+                        line_lists.header.frame_id = "ropod/base_link";
+                        line_lists.header.stamp = ros::Time::now();
+                        line_lists.ns = "points_and_lines";
+                        line_lists.pose.orientation.w = 1.0;
+                        line_lists.id = 2;
+                        line_lists.color.a = 1.0;
+                        line_lists.color.g = 1.0;
+                        line_lists.type = visualization_msgs::Marker::LINE_LIST;
+                        line_lists.scale.x = 0.1;
+                        geometry_msgs::Point points1, points2;
+                        for (auto & segment : localization2_segments){
+                            int k = segment.number;
+                            points1.x = robot_segments[k].p1[0];
+                            points1.y = robot_segments[k].p1[1];
+                            points1.z = points2.z = 0.125;
+                            points2.x = robot_segments[k].p2[0];
+                            points2.y = robot_segments[k].p2[1];
+                            line_lists.points.push_back(points1);
+                            line_lists.points.push_back(points2);
+                        }
+                        marker1_pub.publish(line_lists);
+
                         CalculateNewRobotPose (robot_pose, robot_vel, F);
+                        ROS_INFO("robot pose %f %f %f", robot_pose[0], robot_pose[1], robot_pose[2]);
 
                         loop_rate.sleep();
                     }
