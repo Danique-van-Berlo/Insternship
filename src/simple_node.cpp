@@ -300,7 +300,7 @@ int main(int argc, char **argv)
                         loop_rate.sleep();
                     }
                 default:
-                    ROS_INFO("Something went wrong");
+                    ROS_INFO("Arrived at pose");
                     ros::shutdown();
                     break;
             }

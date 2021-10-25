@@ -140,27 +140,21 @@ std::vector<double> VelocityOL(std::vector<double> old_speed, double f, double b
     std::vector<double> speed;
     if (!wait) {
         if ( i < 1.4*n ) {
-            ROS_INFO("acc x");
             i += 1;
             speed = {old_speed[0]+amax/f, 0, 0};
         } else if ( i < 2.8*n ) {
-            ROS_INFO("dec x");
             i += 1;
             speed = {old_speed[0]-amax/f, 0, 0};
         } else  if ( i < (2.8*n+1.4*m) ) {
-            ROS_INFO("acc y");
             i += 1;
             speed = {0, old_speed[1]+amax/f, 0};
         } else if ( i < (2.8*n+2.8*m) ) {
-            ROS_INFO("dec y");
             i += 1;
             speed = {0, old_speed[1]-amax/f, 0};
         } else if ( i < (2.8*n+2.8*m+k) ) {
-            ROS_INFO("acc theta");
             i += 1;
             speed = {0, 0, old_speed[2]+awmax/f};
         } else if ( i < (2.8*n+2.8*m+2*k) ){
-            ROS_INFO("dec theta");
             i += 1;
             speed = {0, 0, old_speed[2]-awmax/f};
         } else {
@@ -177,22 +171,16 @@ std::vector<double> VelocityCL(std::vector<double> old_speed, double f, std::vec
     double awmax = (3*M_PI)/70;
     std::vector<double> speed;
     if ( error[2] > 0.03*M_PI ) {
-        ROS_INFO("acc theta");
         speed = {0, 0, old_speed[2]+awmax/f};
     } else if ( error[2] < -0.03*M_PI ) {
-        ROS_INFO("dec theta");
         speed = {0, 0, old_speed[2]-awmax/f};
     } else if ( error[0] > 0.08 ) {
-        ROS_INFO("acc x");
         speed = {old_speed[0]+amax/f, 0, 0};
     } else if ( error[0] < -0.08 ) {
-        ROS_INFO("dec x");
         speed = {old_speed[0]-amax/f, 0, 0};
     } else if ( error[1] > 0.02 ) {
-        ROS_INFO("acc y");
         speed = {0, old_speed[1]+amax/f, 0};
     } else if ( error[1] < -0.02 ) {
-        ROS_INFO("dec y");
         speed = {0, old_speed[1]-amax/f, 0};
     } else {
         speed = {0, 0, 0};
@@ -245,7 +233,6 @@ std::vector<double> FindEntrance(std::vector<Segment>& segments, const std::vect
                     double alpha = AngularDifference(segments[i].dv)+robot_pose[2];
                     pose = {x, y, alpha};
                 }
-
             }
         }
     }
@@ -257,7 +244,7 @@ void FindAreaPose(Line& facing, std::vector<double>& destination) { /* O */
     double dy = facing.p2[1]-facing.p1[1];
     dv.push_back(1/(std::sqrt(dx*dx+dy*dy))*dx);
     dv.push_back(1/(std::sqrt(dx*dx+dy*dy))*dy);
-    double facing_angle = AngularDifference(dv);//-M_PI_2;
+    double facing_angle = AngularDifference(dv)-M_PI_2;
     destination.push_back((facing.p1[0]+facing.p2[0])/2);
     destination.push_back((facing.p1[1]+facing.p2[1])/2);
     destination.push_back(facing_angle);
@@ -308,27 +295,21 @@ std::vector<Segment> FindObjects(std::vector<Segment>& segments, const std::vect
     double dy = cart.dv[1];
     double d1 = dy*Mx - dx*My;
     double d2 = dy*(Mx-4*dy) - dx*(My-4*dx);
-    double d3 = dx*(Mx-4*dx) - dy*(My-4*dy);
-    double d4 = dx*(Mx+4*dx) - dy*(My+4*dy);
+    double d3 = dx*(Mx-3*dx) - dy*(My-3*dy);
+    double d4 = dx*(Mx+3*dx) - dy*(My+3*dy);
     for (auto & segment : segments) {
-        ROS_INFO("point 1: %f < %f < %f & %f < %f < %f", d2, dy*cart.dv[1]*segment.p1[0] + dx*segment.p1[1], d1, d4, dx*cart.dv[1]*segment.p1[0] - dy*segment.p1[1], d3);
-        ROS_INFO("point 2: %f < %f < %f & %f < %f < %f", d2, dy*cart.dv[1]*segment.p2[0] + dx*segment.p2[1], d1, d4, dx*cart.dv[1]*segment.p2[0] - dy*segment.p2[1], d3);
         if (dy*cart.dv[1]*segment.p1[0] + dx*segment.p1[1] < d1 && dy*cart.dv[1]*segment.p1[0] + dx*segment.p1[1] > d2 &&
             dx*cart.dv[1]*segment.p1[0] - dy*segment.p1[1] < d3 && dx*cart.dv[1]*segment.p1[0] - dy*segment.p1[1] > d4 &&
             dy*cart.dv[1]*segment.p2[0] + dx*segment.p2[1] < d1 && dy*cart.dv[1]*segment.p2[0] + dx*segment.p2[1] > d2 &&
             dx*cart.dv[1]*segment.p2[0] - dy*segment.p2[1] < d3 && dx*cart.dv[1]*segment.p2[0] - dy*segment.p2[1] > d4) {
-            ROS_INFO("The complete segments will be visible while positioning");
             double sdvl = std::sqrt(segment.dv[0]*segment.dv[0]+segment.dv[1]*segment.dv[1]);
             double cdvl = std::sqrt(cart.dv[0]*cart.dv[0]+cart.dv[1]*cart.dv[1]);
             double alpha = std::acos((segment.dv[0]*cart.dv[0]+segment.dv[1]*cart.dv[1])/(sdvl*cdvl));
-            ROS_INFO("The angle between two segments is calculated");
-            ROS_INFO("%f < %f", std::abs(alpha) - M_PI_2, M_PI_4);
             if (std::abs(std::abs(alpha) - M_PI_2) < M_PI_4) {
-                ROS_INFO("Segment found that is about perpendicular to the cart segment");
+
                 certain_segments.push_back(segment);
             }
         }
-
     }
     return certain_segments;
 }
@@ -387,7 +368,12 @@ std::vector<double> CalculateError(std::vector<Segment>& distances, std::vector<
     for (auto & localization_segment : localization_segments) {
         int j = localization_segment.index;
         int k = localization_segment.number;
-        double alpha = std::acos(segments[k].dv[0])-std::acos(distances[j].dv[0]);
+        double alpha;
+        if (segments[k].p1[1] < 0 ) {
+            alpha = std::acos(segments[k].dv[0])-std::acos(distances[j].dv[0]);
+        } else {
+            alpha = std::acos(distances[j].dv[0])-std::acos(segments[k].dv[0]);
+        }
         et += 1;
         error[2] += alpha;
         if (localization_segment.cat == 0) { //both point on the line
@@ -401,8 +387,6 @@ std::vector<double> CalculateError(std::vector<Segment>& distances, std::vector<
             error[1] += segments[k].p2[1] - y2d;
             ex += 2;
             ey += 2;
-            ROS_INFO("error 1: %f, %f, %f", segments[k].p1[0] - x1d, segments[k].p1[1] - y1d, alpha);
-            ROS_INFO("error 1: %f, %f, %f", segments[k].p2[0] - x2d, segments[k].p2[1] - y2d, alpha);
         } else if (localization_segment.cat == 1) { //begin point on the line
             double x1d = std::cos(alpha)*distances[j].p1[0] - std::sin(alpha)*distances[j].p1[1];
             double y1d = std::sin(alpha)*distances[j].p1[0] + std::cos(alpha)*distances[j].p1[1];
@@ -410,7 +394,6 @@ std::vector<double> CalculateError(std::vector<Segment>& distances, std::vector<
             error[1] += segments[k].p1[1] - y1d;
             ex += 1;
             ey += 1;
-            ROS_INFO("error 1: %f, %f, %f", segments[k].p1[0] - x1d, segments[k].p1[1] - y1d, alpha);
         } else { //end point on the line
             double x2d = std::cos(alpha)*distances[j].p2[0] - std::sin(alpha)*distances[j].p2[1];
             double y2d = std::sin(alpha)*distances[j].p2[0] + std::cos(alpha)*distances[j].p2[1];
@@ -418,7 +401,6 @@ std::vector<double> CalculateError(std::vector<Segment>& distances, std::vector<
             error[1] += segments[k].p2[1] - y2d;
             ex += 1;
             ey += 1;
-            ROS_INFO("error 1: %f, %f, %f", segments[k].p2[0] - x2d, segments[k].p2[1] - y2d, alpha);
         }
        error[0] = error[0]/ex;
        error[1] = error[1]/ey;
@@ -441,7 +423,7 @@ std::vector<Segment2> CompareSegments(std::vector<Segment>& old_segments, std::v
             double ydi = old_segments[i].dv[1];
             double xdj = new_segments[j].dv[0];
             double ydj = new_segments[j].dv[1];
-            if (rb2 < 0.003 && re2 < 0.1) {
+            if (rb2 < 0.003 && re2 < 0.07) {
                 segment.p1 = new_segments[j].p1;
                 segment.p2 = new_segments[j].p2;
                 segment.dv = new_segments[j].dv;
@@ -450,7 +432,7 @@ std::vector<Segment2> CompareSegments(std::vector<Segment>& old_segments, std::v
                 segment.number = j;
                 match.push_back(segment);
                 new_segments[j].p1 = {1000,1000};
-            } else if (rb2 < 0.1 && re2 < 0.003) {
+            } else if (rb2 < 0.07 && re2 < 0.003) {
                 segment.p1 = new_segments[j].p1;
                 segment.p2 = new_segments[j].p2;
                 segment.dv = new_segments[j].dv;
@@ -477,7 +459,7 @@ std::vector<Segment2> CompareSegments(std::vector<Segment>& old_segments, std::v
                 segment.number = j;
                 match.push_back(segment);
                 new_segments[j].p1 = {1000,1000};
-            } else if (rb2 < 0.1 && std::abs(xdi-xdj) < 0.01 && std::abs(ydi-ydj) < 0.01) {
+            } else if (rb2 < 0.05 && std::abs(xdi-xdj) < 0.01 && std::abs(ydi-ydj) < 0.01) {
                 segment.p1 = new_segments[j].p1;
                 segment.p2 = new_segments[j].p2;
                 segment.dv = new_segments[j].dv;
@@ -486,7 +468,7 @@ std::vector<Segment2> CompareSegments(std::vector<Segment>& old_segments, std::v
                 segment.number = j;
                 match.push_back(segment);
                 new_segments[j].p1 = {1000,1000};
-            } else if (re2 < 0.1 && std::abs(xdi-xdj) < 0.01 && std::abs(ydi-ydj) < 0.01) {
+            } else if (re2 < 0.05 && std::abs(xdi-xdj) < 0.01 && std::abs(ydi-ydj) < 0.01) {
                 segment.p1 = new_segments[j].p1;
                 segment.p2 = new_segments[j].p2;
                 segment.dv = new_segments[j].dv;
@@ -495,7 +477,7 @@ std::vector<Segment2> CompareSegments(std::vector<Segment>& old_segments, std::v
                 segment.number = j;
                 match.push_back(segment);
                 new_segments[j].p1 = {1000,1000};
-            } else if (rb2 < 0.1 && std::abs(xdi-xdj) < 0.01 && std::abs(ydi-ydj) < 0.1) {
+            } else if (rb2 < 0.05 && std::abs(xdi-xdj) < 0.01 && std::abs(ydi-ydj) < 0.1) {
                 segment.p1 = new_segments[j].p1;
                 segment.p2 = new_segments[j].p2;
                 segment.dv = new_segments[j].dv;
@@ -504,7 +486,7 @@ std::vector<Segment2> CompareSegments(std::vector<Segment>& old_segments, std::v
                 segment.number = j;
                 match.push_back(segment);
                 new_segments[j].p1 = {1000,1000};
-            } else if (re2 < 0.1 && std::abs(xdi-xdj) < 0.1 && std::abs(ydi-ydj) < 0.01) {
+            } else if (re2 < 0.05 && std::abs(xdi-xdj) < 0.1 && std::abs(ydi-ydj) < 0.01) {
                 segment.p1 = new_segments[j].p1;
                 segment.p2 = new_segments[j].p2;
                 segment.dv = new_segments[j].dv;
