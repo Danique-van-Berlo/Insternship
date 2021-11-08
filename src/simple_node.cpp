@@ -47,8 +47,8 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
     ros::Publisher cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("/load/cmd_vel", 1);
     geometry_msgs::Twist twist_msg;
-    ros::Publisher marker_pub = nh.advertise<visualization_msgs::Marker>( "segments_marker", 0 );
-    ros::Publisher marker1_pub = nh.advertise<visualization_msgs::Marker>( "segments_marker1", 0 );
+    ros::Publisher marker_pub = nh.advertise<visualization_msgs::Marker>( "segments", 0 );
+    ros::Publisher marker1_pub = nh.advertise<visualization_msgs::Marker>( "localization_segments", 0 );
     ros::Subscriber sub_odom = nh.subscribe<nav_msgs::Odometry>("/ropod/odom", 1, odomCallback);
     ros::Subscriber sub_laser = nh.subscribe<sensor_msgs::LaserScan>("/ropod/laser/scan", 1, laserCallback);
 
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
                         ROS_INFO("Start error calculation");
                         std::vector<double> error = CalculateError(object_distance, localization2_segments, robot_segments, robot_pose);
                         ROS_INFO("Drive to destination- Difference is: x=%f, y=%f and theta=%f", error[0], error[1], error[2]);
-                        if (std::abs(error[0]) < 0.08 && std::abs(error[1]) < 0.02 && std::abs(error[2]) < 0.03 * M_PI) {
+                        if (std::abs(error[0]) < 0.08 && std::abs(error[1]) < 0.02 && std::abs(error[2]) < 0.01 * M_PI) {
                             ROS_INFO("At position");
                             SetTwistMessage(twist_msg, {0, 0, 0});
                             cmd_vel_pub.publish(geometry_msgs::Twist(twist_msg));

@@ -170,9 +170,9 @@ std::vector<double> VelocityCL(std::vector<double> old_speed, double f, std::vec
     double amax = 0.82;
     double awmax = (3*M_PI)/70;
     std::vector<double> speed;
-    if ( error[2] > 0.03*M_PI ) {
+    if ( error[2] > 0.01*M_PI ) {
         speed = {0, 0, old_speed[2]+awmax/f};
-    } else if ( error[2] < -0.03*M_PI ) {
+    } else if ( error[2] < -0.01*M_PI ) {
         speed = {0, 0, old_speed[2]-awmax/f};
     } else if ( error[0] > 0.08 ) {
         speed = {old_speed[0]+amax/f, 0, 0};
